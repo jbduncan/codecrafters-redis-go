@@ -37,21 +37,23 @@ func main() {
 func handleClient(conn net.Conn) {
 	defer errorHandlingClose(conn)
 
-	// Read data
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil {
-		printErr(err)
-		return
-	}
+	for i := 0; i < 2; i++ {
+		// Read data
+		buf := make([]byte, 1024)
+		n, err := conn.Read(buf)
+		if err != nil {
+			printErr(err)
+			return
+		}
 
-	log.Printf("Received data %v\n", buf[:n])
+		log.Printf("Received data %v\n", buf[:n])
 
-	// Respond with a Redis PONG
-	_, err = conn.Write([]byte("+PONG\r\n"))
-	if err != nil {
-		printErr(err)
-		return
+		// Respond with a Redis PONG
+		_, err = conn.Write([]byte("+PONG\r\n"))
+		if err != nil {
+			printErr(err)
+			return
+		}
 	}
 }
 
