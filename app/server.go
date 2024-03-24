@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 )
@@ -22,37 +22,32 @@ func main() {
 	fmt.Println("Server is listening on port 6379")
 
 	for {
-		// Block until we receive an incoming connection
 		conn, err := listener.Accept()
 		if err != nil {
 			printErr(err)
 			continue
 		}
 
-		// Handle client connection
-		handleClient(conn)
+		handleConn(conn)
 	}
 }
 
-func handleClient(conn net.Conn) {
+func handleConn(conn net.Conn) {
 	defer errorHandlingClose(conn)
 
-	for i := 0; i < 3; i++ {
-		// Read data
+	for {
 		buf := make([]byte, 1024)
-		n, err := conn.Read(buf)
+		_, err := conn.Read(buf)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			printErr(err)
-			return
 		}
 
-		log.Printf("Received data %v\n", buf[:n])
-
-		// Respond with a Redis PONG
 		_, err = conn.Write([]byte("+PONG\r\n"))
 		if err != nil {
 			printErr(err)
-			return
 		}
 	}
 }
