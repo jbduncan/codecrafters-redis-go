@@ -28,7 +28,7 @@ func main() {
 			continue
 		}
 
-		handleConn(conn)
+		go handleConn(conn)
 	}
 }
 
