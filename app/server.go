@@ -48,17 +48,11 @@ func handleConn(conn net.Conn) {
 			break
 		}
 		switch b {
-		case '+':
-			err = processPingRequest(connReader, conn)
-			break
 		case '*':
-			err = processEchoRequest(connReader, conn)
+			err = processRequest(connReader, conn)
 			break
 		default:
-			_, err := conn.Write([]byte("-ERR unknown command\r\n"))
-			if err != nil {
-				printErr(err)
-			}
+			err = errors.New("unrecognized command")
 		}
 		if err != nil {
 			printErr(err)
@@ -67,37 +61,39 @@ func handleConn(conn net.Conn) {
 	}
 }
 
-func processPingRequest(connReader *bufio.Reader, connWriter io.Writer) error {
-	// TODO: Is draining connReader even needed?
-	_, err := io.Copy(io.Discard, connReader)
-	if err != nil {
-		return err
-	}
-
-	_, err = connWriter.Write([]byte("+PONG\r\n"))
-	return err
-}
-
-func processEchoRequest(connReader *bufio.Reader, connWriter io.Writer) error {
+func processRequest(connReader *bufio.Reader, connWriter io.Writer) error {
 	array, err := parseArray(connReader)
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("%v\n", array)
+
 	if len(array) == 0 {
 		return errors.New("incomplete request")
 	}
-	if !strings.EqualFold(array[0], "ECHO") {
-		return errors.New("unrecognized command")
-	}
-	if len(array) != 2 {
-		return errors.New("ECHO command expected to have one argument")
-	}
 
-	echo := array[1]
-	response := fmt.Sprintf("$%d\r\n%s\r\n", len(echo), echo)
-	_, err = connWriter.Write([]byte(response))
-	return err
+	switch {
+	case strings.EqualFold(array[0], "PING"):
+		// TODO: Is draining connReader even needed?
+		//_, err := io.Copy(io.Discard, connReader)
+		//if err != nil {
+		//	return err
+		//}
+		_, err = connWriter.Write([]byte("+PONG\r\n"))
+		return err
+
+	case strings.EqualFold(array[0], "ECHO"):
+		if len(array) != 2 {
+			return errors.New("ECHO command expected to have one argument")
+		}
+
+		echo := array[1]
+		response := fmt.Sprintf("$%d\r\n%s\r\n", len(echo), echo)
+		_, err = connWriter.Write([]byte(response))
+		return err
+	}
+	return errors.New("unrecognized command")
 }
 
 func parseArray(reader *bufio.Reader) ([]string, error) {
