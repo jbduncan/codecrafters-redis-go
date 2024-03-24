@@ -62,7 +62,7 @@ func handleConn(conn net.Conn) {
 }
 
 func processRequest(connReader *bufio.Reader, connWriter io.Writer) error {
-	array, err := parseArray(connReader)
+	array, err := readArray(connReader)
 	if err != nil {
 		return err
 	}
@@ -75,23 +75,30 @@ func processRequest(connReader *bufio.Reader, connWriter io.Writer) error {
 
 	switch {
 	case strings.EqualFold(array[0], "PING"):
-		_, err = connWriter.Write([]byte("+PONG\r\n"))
-		return err
-
+		return processPingRequest(err, connWriter)
 	case strings.EqualFold(array[0], "ECHO"):
-		if len(array) != 2 {
-			return errors.New("ECHO command expected to have one argument")
-		}
-
-		echo := array[1]
-		response := fmt.Sprintf("$%d\r\n%s\r\n", len(echo), echo)
-		_, err = connWriter.Write([]byte(response))
-		return err
+		return processEchoRequest(array, err, connWriter)
 	}
 	return errors.New("unrecognized command")
 }
 
-func parseArray(reader *bufio.Reader) ([]string, error) {
+func processPingRequest(err error, connWriter io.Writer) error {
+	_, err = connWriter.Write([]byte("+PONG\r\n"))
+	return err
+}
+
+func processEchoRequest(array []string, err error, connWriter io.Writer) error {
+	if len(array) != 2 {
+		return errors.New("ECHO command expected to have one argument")
+	}
+
+	echo := array[1]
+	response := fmt.Sprintf("$%d\r\n%s\r\n", len(echo), echo)
+	_, err = connWriter.Write([]byte(response))
+	return err
+}
+
+func readArray(reader *bufio.Reader) ([]string, error) {
 	arrayLength, err := readUnsignedInt(reader)
 	if err != nil {
 		return nil, err
@@ -112,6 +119,39 @@ func parseArray(reader *bufio.Reader) ([]string, error) {
 	}
 
 	return array, nil
+}
+
+func readBulkString(reader *bufio.Reader) (string, error) {
+	err := expect(reader, '$')
+	if err != nil {
+		return "", err
+	}
+
+	stringLength, err := readUnsignedInt(reader)
+	if err != nil {
+		return "", err
+	}
+
+	err = expectCRLF(reader)
+	if err != nil {
+		return "", err
+	}
+
+	var builder strings.Builder
+	for i := 0; i < stringLength; i++ {
+		b, err := reader.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		builder.WriteByte(b)
+	}
+
+	err = expectCRLF(reader)
+	if err != nil {
+		return "", err
+	}
+
+	return builder.String(), nil
 }
 
 func readUnsignedInt(reader *bufio.Reader) (int, error) {
@@ -151,39 +191,6 @@ func readDigit(reader *bufio.Reader) (byte, error) {
 		return 0, err
 	}
 	return b, nil
-}
-
-func readBulkString(reader *bufio.Reader) (string, error) {
-	err := expect(reader, '$')
-	if err != nil {
-		return "", err
-	}
-
-	stringLength, err := readUnsignedInt(reader)
-	if err != nil {
-		return "", err
-	}
-
-	err = expectCRLF(reader)
-	if err != nil {
-		return "", err
-	}
-
-	var builder strings.Builder
-	for i := 0; i < stringLength; i++ {
-		b, err := reader.ReadByte()
-		if err != nil {
-			return "", err
-		}
-		builder.WriteByte(b)
-	}
-
-	err = expectCRLF(reader)
-	if err != nil {
-		return "", err
-	}
-
-	return builder.String(), nil
 }
 
 func expectCRLF(reader *bufio.Reader) error {
