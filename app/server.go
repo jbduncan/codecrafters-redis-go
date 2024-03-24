@@ -39,7 +39,10 @@ func main() {
 func handleConn(conn net.Conn) {
 	defer errorHandlingClose(conn)
 
-	connReader := bufio.NewReader(conn)
+	all, _ := io.ReadAll(conn)
+	fmt.Printf("message = %s\n", string(all))
+
+	connReader := bufio.NewReader(bytes.NewReader(all))
 
 	for {
 		b, err := connReader.ReadByte()
