@@ -37,7 +37,7 @@ func main() {
 func handleClient(conn net.Conn) {
 	defer errorHandlingClose(conn)
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		// Read data
 		buf := make([]byte, 1024)
 		n, err := conn.Read(buf)
