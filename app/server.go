@@ -9,7 +9,9 @@ import (
 )
 
 func main() {
-	listener, err := net.Listen("tcp", "localhost:8080")
+	const redisPort = 6379
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", redisPort))
 	if err != nil {
 		printErr(err)
 		os.Exit(1)
@@ -17,7 +19,7 @@ func main() {
 
 	defer errorHandlingClose(listener)
 
-	fmt.Println("Server is listening on port 8080")
+	fmt.Println("Server is listening on port 6379")
 
 	for {
 		// Block until we receive an incoming connection
