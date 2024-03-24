@@ -39,6 +39,12 @@ func main() {
 func handleConn(conn net.Conn) {
 	defer errorHandlingClose(conn)
 
+	// TODO: Split into one or two units (and test them):
+	//       - RedisCommandParser: struct that parses connReader and returns an
+	//         appropriate command via an implementation of RedisCommandRunner.
+	//       - RedisCommandRunner: returned by RedisCommandParser, an interface that
+	//         runs the parsed command and writes it to connWriter.
+
 	connReader := bufio.NewReader(conn)
 
 	for {
