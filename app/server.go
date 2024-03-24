@@ -48,7 +48,7 @@ func handleClient(conn net.Conn) {
 	log.Printf("Received data %v\n", buf[:n])
 
 	// Respond with a Redis PONG
-	_, err = conn.Write([]byte(`+PONG\r\n`))
+	_, err = conn.Write([]byte("+PONG\r\n"))
 	if err != nil {
 		printErr(err)
 		return
