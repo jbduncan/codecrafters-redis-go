@@ -75,11 +75,6 @@ func processRequest(connReader *bufio.Reader, connWriter io.Writer) error {
 
 	switch {
 	case strings.EqualFold(array[0], "PING"):
-		// TODO: Is draining connReader even needed?
-		//_, err := io.Copy(io.Discard, connReader)
-		//if err != nil {
-		//	return err
-		//}
 		_, err = connWriter.Write([]byte("+PONG\r\n"))
 		return err
 
