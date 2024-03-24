@@ -2,19 +2,64 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"os"
 )
 
 func main() {
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+	listener, err := net.Listen("tcp", "localhost:8080")
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		printErr(err)
 		os.Exit(1)
 	}
-	_, err = l.Accept()
+
+	defer errorHandlingClose(listener)
+
+	fmt.Println("Server is listening on port 8080")
+
+	for {
+		// Block until we receive an incoming connection
+		conn, err := listener.Accept()
+		if err != nil {
+			printErr(err)
+			continue
+		}
+
+		// Handle client connection
+		handleClient(conn)
+	}
+}
+
+func handleClient(conn net.Conn) {
+	defer errorHandlingClose(conn)
+
+	// Read data
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
 	if err != nil {
-		fmt.Printf("Error accepting connection: %v", err)
-		os.Exit(1)
+		printErr(err)
+		return
+	}
+
+	log.Printf("Received data %v\n", buf[:n])
+
+	// Respond with a Redis PONG
+	_, err = conn.Write([]byte(`+PONG\r\n`))
+	if err != nil {
+		printErr(err)
+		return
+	}
+}
+
+func printErr(err error) {
+	_, _ = fmt.Printf("Error: %v\n", err)
+}
+
+func errorHandlingClose(closer io.Closer) {
+	err := closer.Close()
+	if err != nil {
+		printErr(err)
 	}
 }
