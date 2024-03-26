@@ -36,15 +36,16 @@ func main() {
 func handleConn(conn net.Conn) {
 	defer errorHandlingClose(conn)
 
-	command, err := redis.Parser{}.Parse(conn)
-	if err != nil {
-		printErr(err)
-		return
-	}
+	for {
+		command, err := redis.Parser{}.Parse(conn)
+		if err != nil {
+			printErr(err)
+			continue
+		}
 
-	if err = command.Run(conn); err != nil {
-		printErr(err)
-		return
+		if err = command.Run(conn); err != nil {
+			printErr(err)
+		}
 	}
 
 	//connReader := bufio.NewReader(conn)
