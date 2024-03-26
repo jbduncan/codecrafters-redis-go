@@ -13,7 +13,12 @@ import (
 type Parser struct{}
 
 func (p Parser) Parse(reader io.Reader) (Command, error) {
-	bufReader := bufio.NewReader(reader)
+	var buf bytes.Buffer
+	_, err := io.Copy(&buf, reader)
+	if err != nil {
+		return Command{}, err
+	}
+	bufReader := bufio.NewReader(&buf)
 
 	b, err := bufReader.ReadByte()
 	if err != nil {
