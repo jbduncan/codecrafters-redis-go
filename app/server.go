@@ -38,6 +38,9 @@ func handleConn(conn net.Conn) {
 
 	for {
 		command, err := redis.Parser{}.Parse(conn)
+		if err == io.EOF {
+			return
+		}
 		if err != nil {
 			printErr(err)
 			return

@@ -131,7 +131,7 @@ func readUnsignedInt(reader *bufio.Reader) (int, error) {
 
 	b, err := readDigit(reader)
 	if err != nil {
-		// There were no digits at all, so return early
+		// No digits were found, so return an error
 		return 0, err
 	}
 
@@ -140,7 +140,7 @@ func readUnsignedInt(reader *bufio.Reader) (int, error) {
 	for {
 		b, err := readDigit(reader)
 		if err != nil {
-			// At least one digit was read, so stop
+			// At least one digit was found, so return them all
 			break
 		}
 
