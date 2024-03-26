@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -39,7 +40,9 @@ func handleConn(conn net.Conn) {
 	for {
 		command, err := redis.Parser{}.Parse(conn)
 		if err != nil {
-			printErr(err)
+			if !errors.Is(err, io.EOF) {
+				printErr(err)
+			}
 			continue
 		}
 
