@@ -40,11 +40,12 @@ func handleConn(conn net.Conn) {
 		command, err := redis.Parser{}.Parse(conn)
 		if err != nil {
 			printErr(err)
-			continue
+			return
 		}
 
 		if err = command.Run(conn); err != nil {
 			printErr(err)
+			return
 		}
 	}
 
