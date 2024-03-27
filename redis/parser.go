@@ -39,19 +39,27 @@ func processRequest(connReader *bufio.Reader) (Command, error) {
 
 	switch {
 	case strings.EqualFold(array[0], "PING"):
-		return Command{
-			typ: Ping,
-			f:   processPingRequest,
-		}, nil
+		return PingCommand(), nil
 	case strings.EqualFold(array[0], "ECHO"):
-		return Command{
-			typ: Echo,
-			f: func(w io.Writer) error {
-				return processEchoRequest(array, w)
-			},
-		}, nil
+		return EchoCommand(array), nil
 	}
 	return Command{}, errors.New("unrecognized command")
+}
+
+func EchoCommand(array []string) Command {
+	return Command{
+		typ: Echo,
+		f: func(w io.Writer) error {
+			return processEchoRequest(array, w)
+		},
+	}
+}
+
+func PingCommand() Command {
+	return Command{
+		typ: Ping,
+		f:   processPingRequest,
+	}
 }
 
 func processPingRequest(w io.Writer) error {

@@ -23,3 +23,21 @@ func (c Command) Type() Type {
 func (c Command) Run(w io.Writer) error {
 	return c.f(w)
 }
+
+type Command2 interface {
+	Run() (string, error)
+}
+
+type EchoCommand2 string
+
+func (e EchoCommand2) Run() (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+type PingCommand2 struct{}
+
+func (p PingCommand2) Run() (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
