@@ -23,7 +23,8 @@ func (p Parser) Parse(reader io.Reader) (Command, error) {
 	case '*':
 		return processRequest(bufReader)
 	default:
-		return nil, errors.New("unrecognized command")
+		rest, _ := io.ReadAll(bufReader)
+		return nil, fmt.Errorf("unrecognized command: %s", string([]byte{b})+string(rest))
 	}
 }
 
