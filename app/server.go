@@ -46,7 +46,9 @@ func handleConn(conn net.Conn) {
 			return
 		}
 
-		if err = command.Run(conn); err != nil {
+		response := command.Run()
+		_, err = conn.Write([]byte(response))
+		if err != nil {
 			printErr(err)
 			return
 		}

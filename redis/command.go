@@ -1,43 +1,23 @@
 package redis
 
 import (
-	"io"
+	"fmt"
 )
 
-type Type int
-
-const (
-	Echo Type = iota
-	Ping
-)
-
-type Command struct {
-	typ Type
-	f   func(w io.Writer) error
+type Command interface {
+	Run() string
 }
 
-func (c Command) Type() Type {
-	return c.typ
+type EchoCommand string
+
+func (e EchoCommand) Run() string {
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(e), e)
 }
 
-func (c Command) Run(w io.Writer) error {
-	return c.f(w)
-}
+var PingCommand Command = pingCommand{}
 
-type Command2 interface {
-	Run() (string, error)
-}
+type pingCommand struct{}
 
-type EchoCommand2 string
-
-func (e EchoCommand2) Run() (string, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-type PingCommand2 struct{}
-
-func (p PingCommand2) Run() (string, error) {
-	//TODO implement me
-	panic("implement me")
+func (p pingCommand) Run() string {
+	return "+PONG\r\n"
 }

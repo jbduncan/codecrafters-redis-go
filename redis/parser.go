@@ -17,65 +17,33 @@ func (p Parser) Parse(reader io.Reader) (Command, error) {
 
 	b, err := bufReader.ReadByte()
 	if err != nil {
-		return Command{}, err
+		return nil, err
 	}
 	switch b {
 	case '*':
 		return processRequest(bufReader)
 	default:
-		return Command{}, errors.New("unrecognized command")
+		return nil, errors.New("unrecognized command")
 	}
 }
 
 func processRequest(connReader *bufio.Reader) (Command, error) {
 	array, err := readArray(connReader)
 	if err != nil {
-		return Command{}, err
+		return nil, err
 	}
 
 	if len(array) == 0 {
-		return Command{}, errors.New("incomplete request")
+		return nil, errors.New("incomplete request")
 	}
 
 	switch {
 	case strings.EqualFold(array[0], "PING"):
-		return PingCommand(), nil
+		return PingCommand, nil
 	case strings.EqualFold(array[0], "ECHO"):
-		return EchoCommand(array), nil
+		return EchoCommand(array[1]), nil
 	}
-	return Command{}, errors.New("unrecognized command")
-}
-
-func EchoCommand(array []string) Command {
-	return Command{
-		typ: Echo,
-		f: func(w io.Writer) error {
-			return processEchoRequest(array, w)
-		},
-	}
-}
-
-func PingCommand() Command {
-	return Command{
-		typ: Ping,
-		f:   processPingRequest,
-	}
-}
-
-func processPingRequest(w io.Writer) error {
-	_, err := w.Write([]byte("+PONG\r\n"))
-	return err
-}
-
-func processEchoRequest(array []string, w io.Writer) error {
-	if len(array) != 2 {
-		return errors.New("ECHO command expected to have one argument")
-	}
-
-	echo := array[1]
-	response := fmt.Sprintf("$%d\r\n%s\r\n", len(echo), echo)
-	_, err := w.Write([]byte(response))
-	return err
+	return nil, errors.New("unrecognized command")
 }
 
 func readArray(reader *bufio.Reader) ([]string, error) {
