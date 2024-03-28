@@ -3,7 +3,6 @@ package redis
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -13,29 +12,33 @@ import (
 type Parser struct{}
 
 func (p Parser) Parse(reader io.Reader) (Command, error) {
-	bufReader := bufio.NewReader(reader)
+	request, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("parse: %w", err)
+	}
 
-	b, err := bufReader.ReadByte()
+	bufReader := bufio.NewReader(bytes.NewReader(request))
+
+	bs, err := bufReader.Peek(1)
 	if err != nil {
 		return nil, err
 	}
-	switch b {
+	switch bs[0] {
 	case '*':
-		return processRequest(bufReader)
+		return p.processArrayRequest(bufReader, request)
 	default:
-		rest, _ := io.ReadAll(bufReader)
-		return nil, fmt.Errorf("unrecognized command: %s", string([]byte{b})+string(rest))
+		return nil, fmt.Errorf("parse: unrecognized command: %#v", string(request))
 	}
 }
 
-func processRequest(connReader *bufio.Reader) (Command, error) {
-	array, err := readArray(connReader)
+func (p Parser) processArrayRequest(bufReader *bufio.Reader, request []byte) (Command, error) {
+	array, err := readArray(bufReader)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(array) == 0 {
-		return nil, errors.New("incomplete request")
+		return nil, fmt.Errorf("parse: incomplete array request: %#v", string(request))
 	}
 
 	switch {
@@ -44,10 +47,15 @@ func processRequest(connReader *bufio.Reader) (Command, error) {
 	case strings.EqualFold(array[0], "ECHO"):
 		return EchoCommand(array[1]), nil
 	}
-	return nil, errors.New("unrecognized command")
+	return nil, fmt.Errorf("parse: unrecognized command: %#v", string(request))
 }
 
 func readArray(reader *bufio.Reader) ([]string, error) {
+	err := expect(reader, '*')
+	if err != nil {
+		return nil, err
+	}
+
 	arrayLength, err := readUnsignedInt(reader)
 	if err != nil {
 		return nil, err
@@ -133,7 +141,7 @@ func readDigit(reader *bufio.Reader) (byte, error) {
 		return 0, err
 	}
 	if !('0' <= bs[0] && bs[0] <= '9') {
-		return 0, errors.New("expected digit")
+		return 0, fmt.Errorf("parse: expected digit in range 0-9 but was byte %v", bs[0])
 	}
 	b, err := reader.ReadByte()
 	if err != nil {
@@ -161,7 +169,7 @@ func expect(reader *bufio.Reader, b byte) error {
 	}
 
 	if readBytes[0] != b {
-		return fmt.Errorf("expected %v but was %v", b, readBytes[0])
+		return fmt.Errorf("parse: expected byte %v but was byte %v", b, readBytes[0])
 	}
 
 	_, err = reader.ReadByte()
