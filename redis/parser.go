@@ -12,12 +12,8 @@ import (
 type Parser struct{}
 
 func (p Parser) Parse(reader io.Reader) (Command, error) {
-	request, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("parse: %w", err)
-	}
-
-	bufReader := bufio.NewReader(bytes.NewReader(request))
+	var requestBuffer bytes.Buffer
+	bufReader := bufio.NewReader(io.TeeReader(reader, &requestBuffer))
 
 	bs, err := bufReader.Peek(1)
 	if err != nil {
@@ -25,20 +21,20 @@ func (p Parser) Parse(reader io.Reader) (Command, error) {
 	}
 	switch bs[0] {
 	case '*':
-		return p.processArrayRequest(bufReader, request)
+		return p.processArrayRequest(bufReader, requestBuffer)
 	default:
-		return nil, fmt.Errorf("parse: unrecognized command: %#v", string(request))
+		return nil, fmt.Errorf("parse: unrecognized command: %#v", requestBuffer.String())
 	}
 }
 
-func (p Parser) processArrayRequest(bufReader *bufio.Reader, request []byte) (Command, error) {
+func (p Parser) processArrayRequest(bufReader *bufio.Reader, requestBuffer bytes.Buffer) (Command, error) {
 	array, err := readArray(bufReader)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(array) == 0 {
-		return nil, fmt.Errorf("parse: incomplete array request: %#v", string(request))
+		return nil, fmt.Errorf("parse: incomplete array request: %#v", requestBuffer.String())
 	}
 
 	switch {
@@ -47,7 +43,7 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader, request []byte) (Co
 	case strings.EqualFold(array[0], "ECHO"):
 		return EchoCommand(array[1]), nil
 	}
-	return nil, fmt.Errorf("parse: unrecognized command: %#v", string(request))
+	return nil, fmt.Errorf("parse: unrecognized command: %#v", requestBuffer.String())
 }
 
 func readArray(reader *bufio.Reader) ([]string, error) {
