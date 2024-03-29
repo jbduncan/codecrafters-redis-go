@@ -11,7 +11,27 @@ type Command interface {
 type EchoCommand string
 
 func (e EchoCommand) Run() string {
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(e), e)
+	return bulkString(string(e))
+}
+
+func NewGetCommand(key string, store map[string]string) GetCommand {
+	return GetCommand{
+		key:   key,
+		store: store,
+	}
+}
+
+type GetCommand struct {
+	key   string
+	store map[string]string
+}
+
+func (g GetCommand) Run() string {
+	result, ok := g.store[g.key]
+	if !ok {
+		return "$-1\r\n"
+	}
+	return bulkString(result)
 }
 
 var PingCommand Command = pingCommand{}
@@ -19,7 +39,7 @@ var PingCommand Command = pingCommand{}
 type pingCommand struct{}
 
 func (p pingCommand) Run() string {
-	return "+PONG\r\n"
+	return simpleString("PONG")
 }
 
 func NewSetCommand(key, value string, store map[string]string) SetCommand {
@@ -38,5 +58,13 @@ type SetCommand struct {
 
 func (s SetCommand) Run() string {
 	s.store[s.key] = s.value
-	return "+OK\r\n"
+	return simpleString("OK")
+}
+
+func bulkString(s string) string {
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)
+}
+
+func simpleString(s string) string {
+	return fmt.Sprintf("+%s\r\n", s)
 }

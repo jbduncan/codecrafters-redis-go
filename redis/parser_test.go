@@ -52,6 +52,57 @@ func TestParser_ParseEchoRequest(t *testing.T) {
 	}
 }
 
+func TestParser_ParseGetRequest(t *testing.T) {
+	testCases := []struct {
+		name    string
+		request string
+		key     string
+		value   string
+	}{
+		{
+			name:    "GET grape banana",
+			request: "*3\r\n$3\r\nGET\r\n$5\r\ngrape\r\n$6\r\nbanana\r\n",
+			key:     "grape",
+			value:   "banana",
+		},
+		{
+			name:    "get grape banana",
+			request: "*3\r\n$3\r\nget\r\n$5\r\ngrape\r\n$6\r\nbanana\r\n",
+			key:     "grape",
+			value:   "banana",
+		},
+		{
+			name:    "GeT grape banana",
+			request: "*3\r\n$3\r\nGeT\r\n$5\r\ngrape\r\n$6\r\nbanana\r\n",
+			key:     "grape",
+			value:   "banana",
+		},
+		{
+			name:    "GET link zelda",
+			request: "*3\r\n$3\r\nGET\r\n$4\r\nlink\r\n$5\r\nzelda\r\n",
+			key:     "link",
+			value:   "zelda",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			requestReader := strings.NewReader(testCase.request)
+			store := map[string]string{}
+
+			command, err := redis.NewParser(store).Parse(requestReader)
+
+			if err != nil {
+				t.Errorf("err: expected: nil; got: %v", err)
+			}
+			want := redis.NewGetCommand(testCase.key, store)
+			if !reflect.DeepEqual(command, want) {
+				t.Errorf("command expected to be %#v but was %#v", want, command)
+			}
+		})
+	}
+}
+
 func TestParser_ParsePingRequest(t *testing.T) {
 	testCases := []struct {
 		name    string
@@ -73,9 +124,9 @@ func TestParser_ParsePingRequest(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			reader := strings.NewReader(testCase.request)
+			requestReader := strings.NewReader(testCase.request)
 
-			command, err := redis.NewParser(nil).Parse(reader)
+			command, err := redis.NewParser(nil).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
@@ -122,10 +173,10 @@ func TestParser_ParseSetRequest(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			reader := strings.NewReader(testCase.request)
+			requestReader := strings.NewReader(testCase.request)
 			store := map[string]string{}
 
-			command, err := redis.NewParser(store).Parse(reader)
+			command, err := redis.NewParser(store).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
@@ -138,16 +189,17 @@ func TestParser_ParseSetRequest(t *testing.T) {
 	}
 }
 
-func TestParser_RunningSaveRequestSavesInStore(t *testing.T) {
+func TestParser_SetThenGet(t *testing.T) {
 	store := map[string]string{}
-	reader := strings.NewReader("*3\r\n$3\r\nSET\r\n$4\r\nlink\r\n$5\r\nzelda\r\n")
-	command, err := redis.NewParser(store).Parse(reader)
-	if err != nil {
-		t.Errorf("err: expected: nil; got: %v", err)
-	}
-	_ = command.Run()
+	setRequestReader := strings.NewReader("*3\r\n$3\r\nSET\r\n$4\r\nlink\r\n$5\r\nzelda\r\n")
+	setCommand, _ := redis.NewParser(store).Parse(setRequestReader)
+	_ = setCommand.Run()
+	getRequestReader := strings.NewReader("*2\r\n$3\r\nGET\r\n$4\r\nlink\r\n")
+	getCommand, _ := redis.NewParser(store).Parse(getRequestReader)
 
-	if result := store["link"]; result != "zelda" {
-		t.Errorf(`store expected to contain key-value pair (link: zelda) but was %#v`, store)
+	result := getCommand.Run()
+
+	if result != "$3\r\nzelda\r\n" {
+		t.Errorf(`expected "zelda" but was %#v`, result)
 	}
 }

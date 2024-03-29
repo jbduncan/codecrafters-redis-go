@@ -2,7 +2,7 @@ package redis
 
 import (
 	"bufio"
-	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -19,9 +19,10 @@ type Parser struct {
 	store map[string]string
 }
 
+var errUnrecognizedCommand = errors.New("parse: unrecognized command")
+
 func (p Parser) Parse(reader io.Reader) (Command, error) {
-	var requestBuffer strings.Builder
-	bufReader := bufio.NewReader(io.TeeReader(reader, &requestBuffer))
+	bufReader := bufio.NewReader(reader)
 
 	bs, err := bufReader.Peek(1)
 	if err != nil {
@@ -29,31 +30,33 @@ func (p Parser) Parse(reader io.Reader) (Command, error) {
 	}
 	switch bs[0] {
 	case '*':
-		return p.processArrayRequest(bufReader, requestBuffer)
+		return p.processArrayRequest(bufReader)
 	default:
-		return nil, fmt.Errorf("parse: unrecognized command: %#v", requestBuffer.String())
+		return nil, errUnrecognizedCommand
 	}
 }
 
-func (p Parser) processArrayRequest(bufReader *bufio.Reader, requestBuffer strings.Builder) (Command, error) {
+func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 	array, err := readArray(bufReader)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(array) == 0 {
-		return nil, fmt.Errorf("parse: incomplete array request: %#v", requestBuffer.String())
+		return nil, errUnrecognizedCommand
 	}
 
 	switch {
 	case strings.EqualFold(array[0], "ECHO"):
 		return EchoCommand(array[1]), nil
+	case strings.EqualFold(array[0], "GET"):
+		return NewGetCommand(array[1], p.store), nil
 	case strings.EqualFold(array[0], "PING"):
 		return PingCommand, nil
 	case strings.EqualFold(array[0], "SET"):
 		return NewSetCommand(array[1], array[2], p.store), nil
 	}
-	return nil, fmt.Errorf("parse: unrecognized command: %#v", requestBuffer.String())
+	return nil, errUnrecognizedCommand
 }
 
 func readArray(reader *bufio.Reader) ([]string, error) {
@@ -118,7 +121,7 @@ func readBulkString(reader *bufio.Reader) (string, error) {
 }
 
 func readUnsignedInt(reader *bufio.Reader) (int, error) {
-	var buffer bytes.Buffer
+	var buffer strings.Builder
 
 	b, err := readDigit(reader)
 	if err != nil {

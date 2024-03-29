@@ -74,3 +74,73 @@ func TestSetCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCommand(t *testing.T) {
+	testCases := []struct {
+		name     string
+		key      string
+		value    string
+		response string
+	}{
+		{
+			name:     "(grape: banana)",
+			key:      "grape",
+			value:    "banana",
+			response: "$6\r\nbanana\r\n",
+		},
+		{
+			name:     "(link: zelda)",
+			key:      "link",
+			value:    "zelda",
+			response: "$5\r\nzelda\r\n",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			store := map[string]string{
+				testCase.key: testCase.value,
+			}
+
+			result := redis.NewGetCommand(testCase.key, store).Run()
+
+			if result != testCase.response {
+				t.Errorf(`command expected to return %#v but was %#v`, testCase.response, result)
+			}
+		})
+	}
+}
+
+func TestGetCommand_KeyIsAbsent(t *testing.T) {
+	testCases := []struct {
+		name     string
+		key      string
+		value    string
+		response string
+	}{
+		{
+			name:     "(grape: banana)",
+			key:      "grape",
+			value:    "banana",
+			response: "$6\r\nbanana\r\n",
+		},
+		{
+			name:     "(link: zelda)",
+			key:      "link",
+			value:    "zelda",
+			response: "$5\r\nzelda\r\n",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			store := map[string]string{}
+
+			result := redis.NewGetCommand("link", store).Run()
+
+			if result != "$-1\r\n" {
+				t.Errorf(`command expected to return "$-1\r\n" but was %s`, result)
+			}
+		})
+	}
+}
