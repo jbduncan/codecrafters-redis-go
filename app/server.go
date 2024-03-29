@@ -20,7 +20,7 @@ func main() {
 	defer errorHandlingClose(listener)
 	fmt.Println("Server is listening on port 6379")
 
-	store := map[string]string{}
+	store := redis.NewStore()
 	redisParser := redis.NewParser(store)
 
 	for {

@@ -9,14 +9,14 @@ import (
 	"strings"
 )
 
-func NewParser(store map[string]string) Parser {
+func NewParser(store *Store) Parser {
 	return Parser{
 		store: store,
 	}
 }
 
 type Parser struct {
-	store map[string]string
+	store *Store
 }
 
 var errUnrecognizedCommand = errors.New("parse: unrecognized command")
@@ -50,11 +50,11 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 	case strings.EqualFold(array[0], "ECHO"):
 		return EchoCommand(array[1]), nil
 	case strings.EqualFold(array[0], "GET"):
-		return NewGetCommand(array[1], p.store), nil
+		return NewGetCommand(p.store, array[1]), nil
 	case strings.EqualFold(array[0], "PING"):
 		return PingCommand, nil
 	case strings.EqualFold(array[0], "SET"):
-		return NewSetCommand(array[1], array[2], p.store), nil
+		return NewSetCommand(p.store, array[1], array[2]), nil
 	}
 	return nil, errUnrecognizedCommand
 }

@@ -14,20 +14,20 @@ func (e EchoCommand) Run() string {
 	return bulkString(string(e))
 }
 
-func NewGetCommand(key string, store map[string]string) GetCommand {
+func NewGetCommand(store *Store, key string) GetCommand {
 	return GetCommand{
-		key:   key,
 		store: store,
+		key:   key,
 	}
 }
 
 type GetCommand struct {
+	store *Store
 	key   string
-	store map[string]string
 }
 
 func (g GetCommand) Run() string {
-	result, ok := g.store[g.key]
+	result, ok := g.store.Get(g.key)
 	if !ok {
 		return "$-1\r\n"
 	}
@@ -42,22 +42,22 @@ func (p pingCommand) Run() string {
 	return simpleString("PONG")
 }
 
-func NewSetCommand(key, value string, store map[string]string) SetCommand {
+func NewSetCommand(store *Store, key, value string) SetCommand {
 	return SetCommand{
+		store: store,
 		key:   key,
 		value: value,
-		store: store,
 	}
 }
 
 type SetCommand struct {
+	store *Store
 	key   string
 	value string
-	store map[string]string
 }
 
 func (s SetCommand) Run() string {
-	s.store[s.key] = s.value
+	s.store.Set(s.key, s.value)
 	return simpleString("OK")
 }
 

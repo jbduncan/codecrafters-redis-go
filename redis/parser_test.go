@@ -88,14 +88,14 @@ func TestParser_ParseGetRequest(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			requestReader := strings.NewReader(testCase.request)
-			store := map[string]string{}
+			store := redis.NewStore()
 
 			command, err := redis.NewParser(store).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
 			}
-			want := redis.NewGetCommand(testCase.key, store)
+			want := redis.NewGetCommand(store, testCase.key)
 			if !reflect.DeepEqual(command, want) {
 				t.Errorf("command expected to be %#v but was %#v", want, command)
 			}
@@ -174,14 +174,14 @@ func TestParser_ParseSetRequest(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			requestReader := strings.NewReader(testCase.request)
-			store := map[string]string{}
+			store := redis.NewStore()
 
 			command, err := redis.NewParser(store).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
 			}
-			want := redis.NewSetCommand(testCase.key, testCase.value, store)
+			want := redis.NewSetCommand(store, testCase.key, testCase.value)
 			if !reflect.DeepEqual(command, want) {
 				t.Errorf("command expected to be %#v but was %#v", want, command)
 			}
@@ -190,7 +190,7 @@ func TestParser_ParseSetRequest(t *testing.T) {
 }
 
 func TestParser_SetThenGet(t *testing.T) {
-	store := map[string]string{}
+	store := redis.NewStore()
 	setRequestReader := strings.NewReader("*3\r\n$3\r\nSET\r\n$4\r\nlink\r\n$5\r\nzelda\r\n")
 	setCommand, _ := redis.NewParser(store).Parse(setRequestReader)
 	_ = setCommand.Run()
@@ -199,7 +199,7 @@ func TestParser_SetThenGet(t *testing.T) {
 
 	result := getCommand.Run()
 
-	if result != "$3\r\nzelda\r\n" {
+	if result != "$5\r\nzelda\r\n" {
 		t.Errorf(`expected "zelda" but was %#v`, result)
 	}
 }
