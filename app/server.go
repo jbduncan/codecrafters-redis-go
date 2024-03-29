@@ -17,10 +17,11 @@ func main() {
 		printErr(err)
 		os.Exit(1)
 	}
-
 	defer errorHandlingClose(listener)
-
 	fmt.Println("Server is listening on port 6379")
+
+	store := map[string]string{}
+	redisParser := redis.NewParser(store)
 
 	for {
 		conn, err := listener.Accept()
@@ -29,15 +30,15 @@ func main() {
 			continue
 		}
 
-		go handleConn(conn)
+		go handleConn(conn, redisParser)
 	}
 }
 
-func handleConn(conn net.Conn) {
+func handleConn(conn net.Conn, redisParser redis.Parser) {
 	defer errorHandlingClose(conn)
 
 	for {
-		command, err := redis.Parser{}.Parse(conn)
+		command, err := redisParser.Parse(conn)
 		if err != nil {
 			if err == io.EOF {
 				return

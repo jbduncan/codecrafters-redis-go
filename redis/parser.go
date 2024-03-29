@@ -9,10 +9,18 @@ import (
 	"strings"
 )
 
-type Parser struct{}
+func NewParser(store map[string]string) Parser {
+	return Parser{
+		store: store,
+	}
+}
+
+type Parser struct {
+	store map[string]string
+}
 
 func (p Parser) Parse(reader io.Reader) (Command, error) {
-	var requestBuffer bytes.Buffer
+	var requestBuffer strings.Builder
 	bufReader := bufio.NewReader(io.TeeReader(reader, &requestBuffer))
 
 	bs, err := bufReader.Peek(1)
@@ -27,7 +35,7 @@ func (p Parser) Parse(reader io.Reader) (Command, error) {
 	}
 }
 
-func (p Parser) processArrayRequest(bufReader *bufio.Reader, requestBuffer bytes.Buffer) (Command, error) {
+func (p Parser) processArrayRequest(bufReader *bufio.Reader, requestBuffer strings.Builder) (Command, error) {
 	array, err := readArray(bufReader)
 	if err != nil {
 		return nil, err
@@ -38,10 +46,12 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader, requestBuffer bytes
 	}
 
 	switch {
-	case strings.EqualFold(array[0], "PING"):
-		return PingCommand, nil
 	case strings.EqualFold(array[0], "ECHO"):
 		return EchoCommand(array[1]), nil
+	case strings.EqualFold(array[0], "PING"):
+		return PingCommand, nil
+	case strings.EqualFold(array[0], "SET"):
+		return NewSetCommand(array[1], array[2], p.store), nil
 	}
 	return nil, fmt.Errorf("parse: unrecognized command: %#v", requestBuffer.String())
 }
