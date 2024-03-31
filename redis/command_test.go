@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const redisNullString = "$-1\r\n"
+const redisNullBulkString = "$-1\r\n"
 
 func TestEchoCommand(t *testing.T) {
 	testCases := []struct {
@@ -75,8 +75,8 @@ func TestGetCommand_KeyIsAbsent(t *testing.T) {
 
 	result := redis.NewGetCommand(store, clock, "link").Run()
 
-	if result != redisNullString {
-		t.Errorf(`command expected to return %#v but was %#v`, redisNullString, result)
+	if result != redisNullBulkString {
+		t.Errorf(`command expected to return %#v but was %#v`, redisNullBulkString, result)
 	}
 }
 
@@ -87,8 +87,8 @@ func TestGetCommand_EntryHasExpired(t *testing.T) {
 
 	result := redis.NewGetCommand(store, clock, "link").Run()
 
-	if result != redisNullString {
-		t.Errorf(`command expected to return %#v but was %#v`, redisNullString, result)
+	if result != redisNullBulkString {
+		t.Errorf(`command expected to return %#v but was %#v`, redisNullBulkString, result)
 	}
 }
 
