@@ -2,6 +2,7 @@ package redis
 
 import (
 	"fmt"
+	"time"
 )
 
 type Command interface {
@@ -14,15 +15,17 @@ func (e EchoCommand) Run() string {
 	return bulkString(string(e))
 }
 
-func NewGetCommand(store *Store, key string) GetCommand {
-	return GetCommand{
+func NewGetCommand(store *Store, clock Clock, key string) *GetCommand {
+	return &GetCommand{
 		store: store,
+		clock: clock,
 		key:   key,
 	}
 }
 
 type GetCommand struct {
 	store *Store
+	clock Clock
 	key   string
 }
 
@@ -31,34 +34,53 @@ func (g GetCommand) Run() string {
 	if !ok {
 		return "$-1\r\n"
 	}
-	return bulkString(result)
+
+	expiryTime := result.ExpiryTime()
+	if expiryTime != nil && g.clock.Now().After(*expiryTime) {
+		return "$-1\r\n"
+	}
+
+	return bulkString(result.Data())
 }
 
-var PingCommand Command = pingCommand{}
+type PingCommand struct{}
 
-type pingCommand struct{}
-
-func (p pingCommand) Run() string {
+func (p PingCommand) Run() string {
 	return simpleString("PONG")
 }
 
-func NewSetCommand(store *Store, key, value string) SetCommand {
-	return SetCommand{
+func NewSetCommand(store *Store, key, value string, options ...func(*SetCommand)) *SetCommand {
+	result := &SetCommand{
 		store: store,
 		key:   key,
 		value: value,
 	}
+	for _, option := range options {
+		option(result)
+	}
+	return result
 }
 
 type SetCommand struct {
-	store *Store
-	key   string
-	value string
+	store      *Store
+	key        string
+	value      string
+	expiryTime *time.Time
 }
 
-func (s SetCommand) Run() string {
-	s.store.Set(s.key, s.value)
+func (s *SetCommand) Run() string {
+	if s.expiryTime == nil {
+		s.store.Set(s.key, s.value)
+	} else {
+		s.store.SetWithExpiryTime(s.key, s.value, *s.expiryTime)
+	}
 	return simpleString("OK")
+}
+
+func ExpiryTime(t time.Time) func(*SetCommand) {
+	return func(command *SetCommand) {
+		command.expiryTime = &t
+	}
 }
 
 func bulkString(s string) string {

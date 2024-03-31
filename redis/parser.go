@@ -7,16 +7,19 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 )
 
-func NewParser(store *Store) Parser {
+func NewParser(store *Store, clock Clock) Parser {
 	return Parser{
 		store: store,
+		clock: clock,
 	}
 }
 
 type Parser struct {
 	store *Store
+	clock Clock
 }
 
 var errUnrecognizedCommand = errors.New("parse: unrecognized command")
@@ -50,10 +53,21 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 	case strings.EqualFold(array[0], "ECHO"):
 		return EchoCommand(array[1]), nil
 	case strings.EqualFold(array[0], "GET"):
-		return NewGetCommand(p.store, array[1]), nil
+		return NewGetCommand(p.store, p.clock, array[1]), nil
 	case strings.EqualFold(array[0], "PING"):
-		return PingCommand, nil
+		return PingCommand{}, nil
 	case strings.EqualFold(array[0], "SET"):
+		if len(array) == 5 {
+			expiryTimeInMilliseconds, _ := strconv.Atoi(array[4])
+			expiryTime := time.Duration(expiryTimeInMilliseconds) * time.Millisecond
+			return NewSetCommand(
+					p.store,
+					array[1],
+					array[2],
+					ExpiryTime(p.clock.Now().Add(expiryTime)),
+				),
+				nil
+		}
 		return NewSetCommand(p.store, array[1], array[2]), nil
 	}
 	return nil, errUnrecognizedCommand

@@ -21,7 +21,8 @@ func main() {
 	fmt.Println("Server is listening on port 6379")
 
 	store := redis.NewStore()
-	redisParser := redis.NewParser(store)
+	clock := redis.RealClock{}
+	redisParser := redis.NewParser(store, clock)
 
 	for {
 		conn, err := listener.Accept()
