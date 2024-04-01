@@ -21,8 +21,6 @@ type Parser struct {
 	clock Clock
 }
 
-var errUnrecognizedCommand = errors.New("parse: unrecognized command")
-
 func (p Parser) Parse(reader io.Reader) (Command, error) {
 	bufReader := bufio.NewReader(reader)
 
