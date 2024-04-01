@@ -9,7 +9,9 @@ import (
 const redisNullBulkString = "$-1\r\n"
 
 func TestEchoCommand(t *testing.T) {
-	testCases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		echo     string
 		response string
 	}{
@@ -23,18 +25,20 @@ func TestEchoCommand(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.echo, func(t *testing.T) {
-			response := redis.EchoCommand(testCase.echo).Run()
-			if response != testCase.response {
-				t.Errorf(`command expected to return %#v but was %#v`, testCase.response, response)
+	for _, tt := range tests {
+		t.Run(tt.echo, func(t *testing.T) {
+			response := redis.EchoCommand(tt.echo).Run()
+			if response != tt.response {
+				t.Errorf(`command expected to return %#v but was %#v`, tt.response, response)
 			}
 		})
 	}
 }
 
 func TestGetCommand(t *testing.T) {
-	testCases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name     string
 		key      string
 		value    string
@@ -54,22 +58,24 @@ func TestGetCommand(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			store := redis.NewStore()
-			store.Set(testCase.key, testCase.value)
+			store.Set(tt.key, tt.value)
 			clock := FakeClock{}
 
-			result := redis.NewGetCommand(store, clock, testCase.key).Run()
+			result := redis.NewGetCommand(store, clock, tt.key).Run()
 
-			if result != testCase.response {
-				t.Errorf(`command expected to return %#v but was %#v`, testCase.response, result)
+			if result != tt.response {
+				t.Errorf(`command expected to return %#v but was %#v`, tt.response, result)
 			}
 		})
 	}
 }
 
 func TestGetCommand_KeyIsAbsent(t *testing.T) {
+	t.Parallel()
+
 	store := redis.NewStore()
 	clock := FakeClock{}
 
@@ -81,6 +87,8 @@ func TestGetCommand_KeyIsAbsent(t *testing.T) {
 }
 
 func TestGetCommand_EntryHasExpired(t *testing.T) {
+	t.Parallel()
+
 	store := redis.NewStore()
 	store.SetWithExpiryTime("link", "zelda", time.Unix(0, 0))
 	clock := FakeClock{CurrentTime: time.Unix(0, 1)}
@@ -92,6 +100,31 @@ func TestGetCommand_EntryHasExpired(t *testing.T) {
 	}
 }
 
+func TestInfoCommand(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		infoKind string
+		info     string
+		response string
+	}{
+		{
+			infoKind: "replication",
+			info:     "role:master",
+			response: "$11\r\nrole:master\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.infoKind, func(t *testing.T) {
+			response := redis.InfoCommand(tt.infoKind).Run()
+			if response != tt.response {
+				t.Errorf(`command expected to return %#v but was %#v`, tt.response, response)
+			}
+		})
+	}
+}
+
 func TestPingCommand(t *testing.T) {
 	response := redis.PingCommand{}.Run()
 	if response != "+PONG\r\n" {
@@ -100,7 +133,7 @@ func TestPingCommand(t *testing.T) {
 }
 
 func TestSetCommand(t *testing.T) {
-	testCases := []struct {
+	tests := []struct {
 		name  string
 		key   string
 		value redis.StoreValue
@@ -117,19 +150,19 @@ func TestSetCommand(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			store := redis.NewStore()
 
-			response := redis.NewSetCommand(store, testCase.key, testCase.value.Data()).Run()
+			response := redis.NewSetCommand(store, tt.key, tt.value.Data()).Run()
 
 			if response != "+OK\r\n" {
 				t.Errorf(`command expected to return "+OK\r\n" but was %#v`, response)
 			}
-			if result, ok := store.Get(testCase.key); !ok || result != testCase.value {
+			if result, ok := store.Get(tt.key); !ok || result != tt.value {
 				t.Errorf(
 					`command expected to contain key-value pair (%s: %v) but was %#v`,
-					testCase.key, testCase.value, store,
+					tt.key, tt.value, store,
 				)
 			}
 		})

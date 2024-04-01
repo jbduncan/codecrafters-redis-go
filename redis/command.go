@@ -44,6 +44,12 @@ func (g GetCommand) Run() string {
 	return bulkString(result.Data())
 }
 
+type InfoCommand string
+
+func (i InfoCommand) Run() string {
+	return bulkString("role:master")
+}
+
 type PingCommand struct{}
 
 func (p PingCommand) Run() string {

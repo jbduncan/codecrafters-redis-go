@@ -49,36 +49,70 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 
 	switch {
 	case strings.EqualFold(array[0], "ECHO"):
-		return EchoCommand(array[1]), nil
+		return p.makeEchoCommand(array)
 	case strings.EqualFold(array[0], "GET"):
-		return NewGetCommand(p.store, p.clock, array[1]), nil
+		return p.newGetCommand(array)
+	case strings.EqualFold(array[0], "INFO"):
+		return p.makeInfoCommand(array)
 	case strings.EqualFold(array[0], "PING"):
-		return PingCommand{}, nil
+		return p.makePingCommand(array)
 	case strings.EqualFold(array[0], "SET"):
-		if len(array) == 5 {
-			if !strings.EqualFold(array[3], "PX") {
-				// TODO: return error that server.go can match on
-			}
-			expiryTimeInMilliseconds, err := strconv.Atoi(array[4])
-			if err != nil {
-				// TODO: return error that server.go can match on
-			}
-			if expiryTimeInMilliseconds <= 0 {
-				// TODO: return error that server.go can match on
-			}
-			expiryTime := time.Duration(expiryTimeInMilliseconds) * time.Millisecond
-			return NewSetCommand(
-					p.store,
-					array[1],
-					array[2],
-					ExpiryTime(p.clock.Now().Add(expiryTime)),
-				),
-				nil
-		}
-		return NewSetCommand(p.store, array[1], array[2]), nil
+		return p.newSetCommand(array)
 	}
 	// TODO: return error that server.go can match on
 	panic("unexpected")
+}
+
+func (p Parser) newSetCommand(array []string) (Command, error) {
+	if len(array) == 5 {
+		if !strings.EqualFold(array[3], "PX") {
+			// TODO: return error that server.go can match on
+		}
+		expiryTimeInMilliseconds, err := strconv.Atoi(array[4])
+		if err != nil {
+			// TODO: return error that server.go can match on
+		}
+		if expiryTimeInMilliseconds <= 0 {
+			// TODO: return error that server.go can match on
+		}
+		expiryTime := time.Duration(expiryTimeInMilliseconds) * time.Millisecond
+		return NewSetCommand(
+				p.store,
+				array[1],
+				array[2],
+				ExpiryTime(p.clock.Now().Add(expiryTime)),
+			),
+			nil
+	}
+	return NewSetCommand(p.store, array[1], array[2]), nil
+}
+
+func (p Parser) makePingCommand(array []string) (Command, error) {
+	if len(array) != 1 {
+		// TODO: return error that server.go can match on
+	}
+	return PingCommand{}, nil
+}
+
+func (p Parser) makeInfoCommand(array []string) (Command, error) {
+	if len(array) != 2 {
+		// TODO: return error that server.go can match on
+	}
+	return InfoCommand(array[1]), nil
+}
+
+func (p Parser) newGetCommand(array []string) (Command, error) {
+	if len(array) != 2 {
+		// TODO: return error that server.go can match on
+	}
+	return NewGetCommand(p.store, p.clock, array[1]), nil
+}
+
+func (p Parser) makeEchoCommand(array []string) (Command, error) {
+	if len(array) != 2 {
+		// TODO: return error that server.go can match on
+	}
+	return EchoCommand(array[1]), nil
 }
 
 func readArray(reader *bufio.Reader) ([]string, error) {

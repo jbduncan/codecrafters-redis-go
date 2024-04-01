@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewStoreValue(t *testing.T) {
+	t.Parallel()
+
 	storeValue := redis.NewStoreValue("link")
 
 	if storeValue.Data() != "link" {
@@ -19,6 +21,8 @@ func TestNewStoreValue(t *testing.T) {
 }
 
 func TestNewStoreValueWithExpiryTime(t *testing.T) {
+	t.Parallel()
+
 	storeValue := redis.NewStoreValueWithExpiryTime("link", time.UnixMilli(0))
 
 	if storeValue.Data() != "link" {
@@ -33,7 +37,9 @@ func TestNewStoreValueWithExpiryTime(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-	testCases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name  string
 		key   string
 		value redis.StoreValue
@@ -51,19 +57,19 @@ func TestStore(t *testing.T) {
 	}
 
 	store := redis.NewStore()
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			store.Set(testCase.key, testCase.value.Data())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store.Set(tt.key, tt.value.Data())
 
-			result, ok := store.Get(testCase.key)
+			result, ok := store.Get(tt.key)
 
 			if !ok {
 				t.Errorf(`ok expected to be true but was false`)
 			}
-			if result.Data() != testCase.value.Data() {
+			if result.Data() != tt.value.Data() {
 				t.Errorf(
 					`result.Data() expected to be %#v but was %#v`,
-					testCase.value.Data(), result.Data(),
+					tt.value.Data(), result.Data(),
 				)
 			}
 			if result.ExpiryTime() != nil {

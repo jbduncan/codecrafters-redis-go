@@ -8,6 +8,8 @@ import (
 )
 
 func TestRealClock_Now(t *testing.T) {
+	t.Parallel()
+
 	r := redis.RealClock{}
 
 	got := r.Now()

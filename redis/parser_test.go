@@ -9,7 +9,9 @@ import (
 )
 
 func TestParser_ParseEchoRequest(t *testing.T) {
-	testCases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name    string
 		request string
 		echo    string
@@ -36,24 +38,28 @@ func TestParser_ParseEchoRequest(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			reader := strings.NewReader(testCase.request)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := strings.NewReader(tt.request)
+			store := redis.NewStore()
+			clock := FakeClock{}
 
-			command, err := redis.NewParser(nil, nil).Parse(reader)
+			command, err := redis.NewParser(store, clock).Parse(reader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
 			}
-			if !reflect.DeepEqual(command, redis.EchoCommand(testCase.echo)) {
-				t.Errorf(`command expected to be "%s" but was %#v`, testCase.echo, command)
+			if !reflect.DeepEqual(command, redis.EchoCommand(tt.echo)) {
+				t.Errorf(`command expected to be "%s" but was %#v`, tt.echo, command)
 			}
 		})
 	}
 }
 
 func TestParser_ParseGetRequest(t *testing.T) {
-	testCases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name    string
 		request string
 		key     string
@@ -85,9 +91,9 @@ func TestParser_ParseGetRequest(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			requestReader := strings.NewReader(testCase.request)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requestReader := strings.NewReader(tt.request)
 			store := redis.NewStore()
 			clock := FakeClock{}
 
@@ -96,7 +102,7 @@ func TestParser_ParseGetRequest(t *testing.T) {
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
 			}
-			want := redis.NewGetCommand(store, clock, testCase.key)
+			want := redis.NewGetCommand(store, clock, tt.key)
 			if !reflect.DeepEqual(command, want) {
 				t.Errorf("command expected to be %#v but was %#v", want, command)
 			}
@@ -104,8 +110,54 @@ func TestParser_ParseGetRequest(t *testing.T) {
 	}
 }
 
+func TestParser_ParseInfoRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		request  string
+		infoKind string
+	}{
+		{
+			name:     "INFO replication",
+			request:  "*2\r\n$4\r\nINFO\r\n$11\r\nreplication\r\n",
+			infoKind: "replication",
+		},
+		{
+			name:     "info replication",
+			request:  "*2\r\n$4\r\ninfo\r\n$11\r\nreplication\r\n",
+			infoKind: "replication",
+		},
+		{
+			name:     "InFo replication",
+			request:  "*2\r\n$4\r\nInFo\r\n$11\r\nreplication\r\n",
+			infoKind: "replication",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requestReader := strings.NewReader(tt.request)
+			store := redis.NewStore()
+			clock := FakeClock{}
+
+			command, err := redis.NewParser(store, clock).Parse(requestReader)
+
+			if err != nil {
+				t.Errorf("err: expected: nil; got: %v", err)
+			}
+			want := redis.InfoCommand(tt.infoKind)
+			if command != want {
+				t.Errorf("command expected to be %#v but was %#v", want, command)
+			}
+		})
+	}
+}
+
 func TestParser_ParsePingRequest(t *testing.T) {
-	testCases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name    string
 		request string
 	}{
@@ -123,11 +175,13 @@ func TestParser_ParsePingRequest(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			requestReader := strings.NewReader(testCase.request)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requestReader := strings.NewReader(tt.request)
+			store := redis.NewStore()
+			clock := FakeClock{}
 
-			command, err := redis.NewParser(nil, nil).Parse(requestReader)
+			command, err := redis.NewParser(store, clock).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
@@ -140,7 +194,9 @@ func TestParser_ParsePingRequest(t *testing.T) {
 }
 
 func TestParser_ParseSetRequest(t *testing.T) {
-	testCases := []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name    string
 		request string
 		key     string
@@ -187,11 +243,11 @@ func TestParser_ParseSetRequest(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			store := redis.NewStore()
 			clock := FakeClock{CurrentTime: time.UnixMilli(0).UTC()}
-			requestReader := strings.NewReader(testCase.request)
+			requestReader := strings.NewReader(tt.request)
 
 			command, err := redis.NewParser(store, clock).Parse(requestReader)
 
@@ -202,13 +258,13 @@ func TestParser_ParseSetRequest(t *testing.T) {
 			if !ok {
 				t.Errorf(`ok expected to be true but was false`)
 			}
-			want := redis.NewSetCommand(store, testCase.key, testCase.value)
-			if testCase.ttl != nil {
+			want := redis.NewSetCommand(store, tt.key, tt.value)
+			if tt.ttl != nil {
 				want = redis.NewSetCommand(
 					store,
-					testCase.key,
-					testCase.value,
-					redis.ExpiryTime(clock.Now().Add(*testCase.ttl)),
+					tt.key,
+					tt.value,
+					redis.ExpiryTime(clock.Now().Add(*tt.ttl)),
 				)
 			}
 			if !setCommand.Equal(want) {
