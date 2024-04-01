@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -9,16 +10,20 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
-func main() {
-	const redisPort = 6379
+const defaultRedisPort = 6379
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", redisPort))
+var port = flag.Int("port", defaultRedisPort, "the port to run the Redis server on")
+
+func main() {
+	flag.Parse()
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", *port))
 	if err != nil {
 		printErr(err)
 		os.Exit(1)
 	}
 	defer errorHandlingClose(listener)
-	fmt.Println("Server is listening on port 6379")
+	fmt.Printf("Server is listening on port %d\n", *port)
 
 	store := redis.NewStore()
 	clock := redis.RealClock{}
