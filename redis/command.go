@@ -44,10 +44,26 @@ func (g GetCommand) Run() string {
 	return bulkString(result.Data())
 }
 
-type InfoCommand string
+type InfoKind string
 
-func (i InfoCommand) Run() string {
-	return bulkString("role:master")
+const (
+	InfoKindReplication InfoKind = "replication"
+)
+
+func NewInfoCommand(config *Config, infoKind InfoKind) *InfoCommand {
+	return &InfoCommand{
+		config:   config,
+		infoKind: infoKind,
+	}
+}
+
+type InfoCommand struct {
+	config   *Config
+	infoKind InfoKind
+}
+
+func (i *InfoCommand) Run() string {
+	return bulkString("role:" + string(i.config.Replication.Role.String()))
 }
 
 type PingCommand struct{}
@@ -56,7 +72,12 @@ func (p PingCommand) Run() string {
 	return simpleString("PONG")
 }
 
-func NewSetCommand(store *Store, key, value string, options ...func(*SetCommand)) *SetCommand {
+func NewSetCommand(
+	store *Store,
+	key,
+	value string,
+	options ...func(*SetCommand),
+) *SetCommand {
 	result := &SetCommand{
 		store: store,
 		key:   key,

@@ -1,9 +1,10 @@
 package redis_test
 
 import (
-	"github.com/codecrafters-io/redis-starter-go/redis"
 	"testing"
 	"time"
+
+	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
 const redisNullBulkString = "$-1\r\n"
@@ -104,20 +105,33 @@ func TestInfoCommand(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		infoKind string
-		info     string
+		config   *redis.Config
+		infoKind redis.InfoKind
 		response string
 	}{
 		{
-			infoKind: "replication",
-			info:     "role:master",
+			config: &redis.Config{
+				Replication: &redis.ReplicationConfig{
+					Role: redis.ReplicationRoleMaster,
+				},
+			},
+			infoKind: redis.InfoKindReplication,
 			response: "$11\r\nrole:master\r\n",
+		},
+		{
+			config: &redis.Config{
+				Replication: &redis.ReplicationConfig{
+					Role: redis.ReplicationRoleSlave,
+				},
+			},
+			infoKind: redis.InfoKindReplication,
+			response: "$10\r\nrole:slave\r\n",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.infoKind, func(t *testing.T) {
-			response := redis.InfoCommand(tt.infoKind).Run()
+		t.Run(string(tt.infoKind), func(t *testing.T) {
+			response := redis.NewInfoCommand(tt.config, tt.infoKind).Run()
 			if response != tt.response {
 				t.Errorf(`command expected to return %#v but was %#v`, tt.response, response)
 			}

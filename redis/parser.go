@@ -9,16 +9,18 @@ import (
 	"time"
 )
 
-func NewParser(config Config, store *Store, clock Clock) Parser {
+func NewParser(config *Config, store *Store, clock Clock) Parser {
 	return Parser{
-		store: store,
-		clock: clock,
+		config: config,
+		store:  store,
+		clock:  clock,
 	}
 }
 
 type Parser struct {
-	store *Store
-	clock Clock
+	config *Config
+	store  *Store
+	clock  Clock
 }
 
 func (p Parser) Parse(reader io.Reader) (Command, error) {
@@ -98,7 +100,10 @@ func (p Parser) makeInfoCommand(array []string) (Command, error) {
 	if len(array) != 2 {
 		// TODO: return error that server.go can match on
 	}
-	return InfoCommand(array[1]), nil
+	if array[1] != string(InfoKindReplication) {
+		// TODO: return error that server.go can match on
+	}
+	return NewInfoCommand(p.config, InfoKindReplication), nil
 }
 
 func (p Parser) newGetCommand(array []string) (Command, error) {

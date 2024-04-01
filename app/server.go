@@ -15,8 +15,9 @@ import (
 const defaultRedisPort = 6379
 
 var (
-	port      uint64
-	replicaOf *replicaOfFlag
+	port uint64
+	//replicaOf *replicaOfFlag
+	replicaOf string
 )
 
 type replicaOfFlag struct {
@@ -50,12 +51,13 @@ func (r *replicaOfFlag) Set(value string) error {
 
 func main() {
 	flag.Uint64Var(&port, "port", defaultRedisPort, "the port to run the Redis server on")
-	flag.Var(
-		replicaOf,
-		"replicaof",
-		"the Redis server that this server is a replica of; "+
-			"must be in the format '<host> <port>'",
-	)
+	//flag.Var(
+	//	replicaOf,
+	//	"replicaof",
+	//	"the Redis server that this server is a replica of; "+
+	//		"must be in the format '<host> <port>'",
+	//)
+	flag.StringVar(&replicaOf, "replicaof", "", "foo")
 	flag.Parse()
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
@@ -67,14 +69,14 @@ func main() {
 	fmt.Printf("Server is listening on port %d\n", port)
 
 	var role redis.ReplicationRole
-	if replicaOf == nil {
+	if replicaOf == "" {
 		role = redis.ReplicationRoleMaster
 	} else {
 		role = redis.ReplicationRoleSlave
 	}
 
-	config := redis.Config{
-		Replication: redis.ReplicationConfig{
+	config := &redis.Config{
+		Replication: &redis.ReplicationConfig{
 			Role: role,
 		},
 	}

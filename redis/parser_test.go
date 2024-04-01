@@ -1,11 +1,12 @@
 package redis_test
 
 import (
-	"github.com/codecrafters-io/redis-starter-go/redis"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
 func TestParser_ParseEchoRequest(t *testing.T) {
@@ -41,7 +42,7 @@ func TestParser_ParseEchoRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := strings.NewReader(tt.request)
-			config := redis.Config{}
+			config := &redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
@@ -95,7 +96,7 @@ func TestParser_ParseGetRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestReader := strings.NewReader(tt.request)
-			config := redis.Config{}
+			config := &redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
@@ -118,39 +119,64 @@ func TestParser_ParseInfoRequest(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  string
-		infoKind string
+		infoKind redis.InfoKind
+		config   *redis.Config
 	}{
 		{
-			name:     "INFO replication",
+			name:     "INFO replication for master server",
 			request:  "*2\r\n$4\r\nINFO\r\n$11\r\nreplication\r\n",
-			infoKind: "replication",
+			infoKind: redis.InfoKindReplication,
+			config: &redis.Config{
+				Replication: &redis.ReplicationConfig{
+					Role: redis.ReplicationRoleMaster,
+				},
+			},
 		},
 		{
-			name:     "info replication",
+			name:     "info replication for master server",
 			request:  "*2\r\n$4\r\ninfo\r\n$11\r\nreplication\r\n",
-			infoKind: "replication",
+			infoKind: redis.InfoKindReplication,
+			config: &redis.Config{
+				Replication: &redis.ReplicationConfig{
+					Role: redis.ReplicationRoleMaster,
+				},
+			},
 		},
 		{
-			name:     "InFo replication",
+			name:     "InFo replication for master server",
 			request:  "*2\r\n$4\r\nInFo\r\n$11\r\nreplication\r\n",
-			infoKind: "replication",
+			infoKind: redis.InfoKindReplication,
+			config: &redis.Config{
+				Replication: &redis.ReplicationConfig{
+					Role: redis.ReplicationRoleMaster,
+				},
+			},
+		},
+		{
+			name:     "INFO replication for slave server",
+			request:  "*2\r\n$4\r\nInFo\r\n$11\r\nreplication\r\n",
+			infoKind: redis.InfoKindReplication,
+			config: &redis.Config{
+				Replication: &redis.ReplicationConfig{
+					Role: redis.ReplicationRoleSlave,
+				},
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestReader := strings.NewReader(tt.request)
-			config := redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
-			command, err := redis.NewParser(config, store, clock).Parse(requestReader)
+			command, err := redis.NewParser(tt.config, store, clock).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
 			}
-			want := redis.InfoCommand(tt.infoKind)
-			if command != want {
+			want := redis.NewInfoCommand(tt.config, tt.infoKind)
+			if !reflect.DeepEqual(command, want) {
 				t.Errorf("command expected to be %#v but was %#v", want, command)
 			}
 		})
@@ -181,7 +207,7 @@ func TestParser_ParsePingRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestReader := strings.NewReader(tt.request)
-			config := redis.Config{}
+			config := &redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
@@ -249,7 +275,7 @@ func TestParser_ParseSetRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := redis.Config{}
+			config := &redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{CurrentTime: time.UnixMilli(0)}
 			requestReader := strings.NewReader(tt.request)
