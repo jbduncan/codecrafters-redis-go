@@ -25,11 +25,10 @@ type replicaOfFlag struct {
 }
 
 func (r *replicaOfFlag) String() string {
+	if r == nil {
+		return "<nil>"
+	}
 	return fmt.Sprintf("%v", *r)
-}
-
-func (r *replicaOfFlag) GoString() string {
-	return fmt.Sprintf("%#v", *r)
 }
 
 func (r *replicaOfFlag) Set(value string) error {
