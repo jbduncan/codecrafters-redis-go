@@ -6,28 +6,82 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
 const defaultRedisPort = 6379
 
-var port = flag.Int("port", defaultRedisPort, "the port to run the Redis server on")
+var (
+	port      uint64
+	replicaOf *replicaOfFlag
+)
+
+type replicaOfFlag struct {
+	host string
+	port uint64
+}
+
+func (r *replicaOfFlag) String() string {
+	return fmt.Sprintf("%v", *r)
+}
+
+func (r *replicaOfFlag) GoString() string {
+	return fmt.Sprintf("%#v", *r)
+}
+
+func (r *replicaOfFlag) Set(value string) error {
+	parts := strings.Split(value, " ")
+	if len(parts) != 2 {
+		return fmt.Errorf("replicaOf must be in the format '<host> <port>'")
+	}
+
+	r.host = parts[0]
+
+	port, err := strconv.ParseUint(parts[1], 10, 64)
+	if err != nil {
+		return err
+	}
+	r.port = port
+
+	return nil
+}
 
 func main() {
+	flag.Uint64Var(&port, "port", defaultRedisPort, "the port to run the Redis server on")
+	flag.Var(
+		replicaOf,
+		"replicaof",
+		"the Redis server that this server is a replica of; "+
+			"must be in the format '<host> <port>'",
+	)
 	flag.Parse()
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", *port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		printErr(err)
 		os.Exit(1)
 	}
 	defer errorHandlingClose(listener)
-	fmt.Printf("Server is listening on port %d\n", *port)
+	fmt.Printf("Server is listening on port %d\n", port)
 
+	var role redis.ReplicationRole
+	if replicaOf == nil {
+		role = redis.ReplicationRoleMaster
+	} else {
+		role = redis.ReplicationRoleSlave
+	}
+
+	config := redis.Config{
+		Replication: redis.ReplicationConfig{
+			Role: role,
+		},
+	}
 	store := redis.NewStore()
 	clock := redis.RealClock{}
-	redisParser := redis.NewParser(store, clock)
+	redisParser := redis.NewParser(config, store, clock)
 
 	for {
 		conn, err := listener.Accept()

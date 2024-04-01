@@ -41,10 +41,11 @@ func TestParser_ParseEchoRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := strings.NewReader(tt.request)
+			config := redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
-			command, err := redis.NewParser(store, clock).Parse(reader)
+			command, err := redis.NewParser(config, store, clock).Parse(reader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
@@ -94,10 +95,11 @@ func TestParser_ParseGetRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestReader := strings.NewReader(tt.request)
+			config := redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
-			command, err := redis.NewParser(store, clock).Parse(requestReader)
+			command, err := redis.NewParser(config, store, clock).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
@@ -138,10 +140,11 @@ func TestParser_ParseInfoRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestReader := strings.NewReader(tt.request)
+			config := redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
-			command, err := redis.NewParser(store, clock).Parse(requestReader)
+			command, err := redis.NewParser(config, store, clock).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
@@ -178,10 +181,11 @@ func TestParser_ParsePingRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestReader := strings.NewReader(tt.request)
+			config := redis.Config{}
 			store := redis.NewStore()
 			clock := FakeClock{}
 
-			command, err := redis.NewParser(store, clock).Parse(requestReader)
+			command, err := redis.NewParser(config, store, clock).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
@@ -245,11 +249,12 @@ func TestParser_ParseSetRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			config := redis.Config{}
 			store := redis.NewStore()
-			clock := FakeClock{CurrentTime: time.UnixMilli(0).UTC()}
+			clock := FakeClock{CurrentTime: time.UnixMilli(0)}
 			requestReader := strings.NewReader(tt.request)
 
-			command, err := redis.NewParser(store, clock).Parse(requestReader)
+			command, err := redis.NewParser(config, store, clock).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)

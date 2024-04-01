@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func NewParser(store *Store, clock Clock) Parser {
+func NewParser(config Config, store *Store, clock Clock) Parser {
 	return Parser{
 		store: store,
 		clock: clock,
