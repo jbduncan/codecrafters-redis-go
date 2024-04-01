@@ -3,7 +3,6 @@ package redis
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -35,7 +34,8 @@ func (p Parser) Parse(reader io.Reader) (Command, error) {
 	case '*':
 		return p.processArrayRequest(bufReader)
 	default:
-		return nil, errUnrecognizedCommand
+		// TODO: return error that server.go can match on
+		panic("unexpected")
 	}
 }
 
@@ -46,7 +46,7 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 	}
 
 	if len(array) == 0 {
-		return nil, errUnrecognizedCommand
+		// TODO: return error that server.go can match on
 	}
 
 	switch {
@@ -58,7 +58,16 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 		return PingCommand{}, nil
 	case strings.EqualFold(array[0], "SET"):
 		if len(array) == 5 {
-			expiryTimeInMilliseconds, _ := strconv.Atoi(array[4])
+			if !strings.EqualFold(array[3], "PX") {
+				// TODO: return error that server.go can match on
+			}
+			expiryTimeInMilliseconds, err := strconv.Atoi(array[4])
+			if err != nil {
+				// TODO: return error that server.go can match on
+			}
+			if expiryTimeInMilliseconds <= 0 {
+				// TODO: return error that server.go can match on
+			}
 			expiryTime := time.Duration(expiryTimeInMilliseconds) * time.Millisecond
 			return NewSetCommand(
 					p.store,
@@ -70,7 +79,8 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 		}
 		return NewSetCommand(p.store, array[1], array[2]), nil
 	}
-	return nil, errUnrecognizedCommand
+	// TODO: return error that server.go can match on
+	panic("unexpected")
 }
 
 func readArray(reader *bufio.Reader) ([]string, error) {
@@ -97,6 +107,8 @@ func readArray(reader *bufio.Reader) ([]string, error) {
 		}
 		array = append(array, elem)
 	}
+
+	// TODO: expect the end of the reader
 
 	return array, nil
 }
@@ -164,7 +176,7 @@ func readDigit(reader *bufio.Reader) (byte, error) {
 		return 0, err
 	}
 	if !('0' <= bs[0] && bs[0] <= '9') {
-		return 0, fmt.Errorf("parse: expected digit in range 0-9 but was byte %v", bs[0])
+		// TODO: return error that server.go can match on
 	}
 	b, err := reader.ReadByte()
 	if err != nil {
@@ -192,7 +204,7 @@ func expect(reader *bufio.Reader, b byte) error {
 	}
 
 	if readBytes[0] != b {
-		return fmt.Errorf("parse: expected byte %v but was byte %v", b, readBytes[0])
+		// TODO: return error that server.go can match on
 	}
 
 	_, err = reader.ReadByte()

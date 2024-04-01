@@ -172,8 +172,8 @@ func TestParser_ParseSetRequest(t *testing.T) {
 			value:   "zelda",
 		},
 		{
-			name:    "SET grape banana PX 100",
-			request: "*5\r\n$3\r\nSET\r\n$5\r\ngrape\r\n$6\r\nbanana\r\n$2\r\nPX\r\n$3\r\n100\r\n",
+			name:    "SET grape banana px 100",
+			request: "*5\r\n$3\r\nSET\r\n$5\r\ngrape\r\n$6\r\nbanana\r\n$2\r\npx\r\n$3\r\n100\r\n",
 			key:     "grape",
 			value:   "banana",
 			ttl:     ptr(100 * time.Millisecond),
@@ -190,13 +190,17 @@ func TestParser_ParseSetRequest(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			store := redis.NewStore()
-			clock := FakeClock{CurrentTime: time.UnixMilli(0)}
+			clock := FakeClock{CurrentTime: time.UnixMilli(0).UTC()}
 			requestReader := strings.NewReader(testCase.request)
 
 			command, err := redis.NewParser(store, clock).Parse(requestReader)
 
 			if err != nil {
 				t.Errorf("err: expected: nil; got: %v", err)
+			}
+			setCommand, ok := command.(*redis.SetCommand)
+			if !ok {
+				t.Errorf(`ok expected to be true but was false`)
 			}
 			want := redis.NewSetCommand(store, testCase.key, testCase.value)
 			if testCase.ttl != nil {
@@ -207,8 +211,8 @@ func TestParser_ParseSetRequest(t *testing.T) {
 					redis.ExpiryTime(clock.Now().Add(*testCase.ttl)),
 				)
 			}
-			if !reflect.DeepEqual(command, want) {
-				t.Errorf("command expected to be %#v but was %#v", want, command)
+			if !setCommand.Equal(want) {
+				t.Errorf("command expected to be equal to %#v but was %#v", want, command)
 			}
 		})
 	}

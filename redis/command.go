@@ -2,6 +2,7 @@ package redis
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 )
 
@@ -75,6 +76,25 @@ func (s *SetCommand) Run() string {
 		s.store.SetWithExpiryTime(s.key, s.value, *s.expiryTime)
 	}
 	return simpleString("OK")
+}
+
+func (s *SetCommand) Equal(other *SetCommand) bool {
+	return reflect.DeepEqual(s.store, other.store) &&
+		s.key == other.key &&
+		s.value == other.value &&
+		s.expiryTimesEqual(other)
+}
+
+func (s *SetCommand) expiryTimesEqual(other *SetCommand) bool {
+	var expiryTimesEqual bool
+	if s.expiryTime == nil && other.expiryTime == nil {
+		expiryTimesEqual = true
+	} else if s.expiryTime == nil || other.expiryTime == nil {
+		expiryTimesEqual = false
+	} else {
+		expiryTimesEqual = s.expiryTime.Equal(*other.expiryTime)
+	}
+	return expiryTimesEqual
 }
 
 func ExpiryTime(t time.Time) func(*SetCommand) {

@@ -164,3 +164,114 @@ func TestSetCommandWithExpiryTime(t *testing.T) {
 		)
 	}
 }
+
+func TestSetCommand_Equal(t *testing.T) {
+	emptyStore1 := redis.NewStore()
+	emptyStore2 := redis.NewStore()
+	singleEntryStore := redis.NewStore()
+	singleEntryStore.Set("foo", "bar")
+	s1 := redis.NewSetCommand(
+		emptyStore1,
+		"link",
+		"zelda",
+	)
+	s2 := redis.NewSetCommand(
+		emptyStore1,
+		"link",
+		"zelda",
+	)
+	s3 := redis.NewSetCommand(
+		emptyStore2,
+		"link",
+		"zelda",
+	)
+	s4 := redis.NewSetCommand(
+		singleEntryStore,
+		"link",
+		"zelda",
+	)
+	s5 := redis.NewSetCommand(
+		emptyStore1,
+		"grape",
+		"zelda",
+	)
+	s6 := redis.NewSetCommand(
+		emptyStore1,
+		"link",
+		"banana",
+	)
+	s7 := redis.NewSetCommand(
+		emptyStore1,
+		"link",
+		"zelda",
+		redis.ExpiryTime(time.UnixMilli(0)),
+	)
+	s8 := redis.NewSetCommand(
+		emptyStore1,
+		"link",
+		"zelda",
+		redis.ExpiryTime(time.UnixMilli(0)),
+	)
+	tests := []struct {
+		name  string
+		this  *redis.SetCommand
+		other *redis.SetCommand
+		want  bool
+	}{
+		{
+			name:  "s1.Equal(s1)",
+			this:  s1,
+			other: s1,
+			want:  true,
+		},
+		{
+			name:  "s1.Equal(s2)",
+			this:  s1,
+			other: s2,
+			want:  true,
+		},
+		{
+			name:  "s1.Equal(s3)",
+			this:  s1,
+			other: s3,
+			want:  true,
+		},
+		{
+			name:  "!s1.Equal(s4)",
+			this:  s1,
+			other: s4,
+			want:  false,
+		},
+		{
+			name:  "!s1.Equal(s5)",
+			this:  s1,
+			other: s5,
+			want:  false,
+		},
+		{
+			name:  "!s1.Equal(s6)",
+			this:  s1,
+			other: s6,
+			want:  false,
+		},
+		{
+			name:  "!s1.Equal(s7)",
+			this:  s1,
+			other: s7,
+			want:  false,
+		},
+		{
+			name:  "s7.Equal(s8)",
+			this:  s7,
+			other: s8,
+			want:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.this.Equal(tt.other); got != tt.want {
+				t.Errorf("Equal() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
