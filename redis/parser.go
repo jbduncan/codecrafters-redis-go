@@ -177,6 +177,7 @@ func readDigit(reader *bufio.Reader) (byte, error) {
 	}
 	if !('0' <= bs[0] && bs[0] <= '9') {
 		// TODO: return error that server.go can match on
+		return 0, errors.New("not a digit")
 	}
 	b, err := reader.ReadByte()
 	if err != nil {
