@@ -3,6 +3,7 @@ package redis
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -63,7 +64,14 @@ type InfoCommand struct {
 }
 
 func (i *InfoCommand) Run() string {
-	return bulkString("role:" + string(i.config.Replication.Role.String()))
+	var entries []string
+	entries = append(entries, "role:"+string(i.config.Replication.Role.String()))
+	masterConfig := i.config.Replication.Master
+	if masterConfig != nil {
+		entries = append(entries, "master_replid:"+masterConfig.ReplID)
+		entries = append(entries, "master_repl_offset:0")
+	}
+	return bulkString(strings.Join(entries, "\n"))
 }
 
 type PingCommand struct{}

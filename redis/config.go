@@ -3,11 +3,12 @@ package redis
 import "fmt"
 
 type Config struct {
-	Replication *ReplicationConfig
+	Replication ReplicationConfig
 }
 
 type ReplicationConfig struct {
-	Role ReplicationRole
+	Role   ReplicationRole
+	Master *ReplicationMasterConfig
 }
 
 type ReplicationRole int
@@ -25,4 +26,9 @@ func (r ReplicationRole) String() string {
 		return "slave"
 	}
 	panic(fmt.Sprintf("unknown redis.ReplicationRole: %d", r))
+}
+
+type ReplicationMasterConfig struct {
+	ReplID     string
+	ReplOffset uint
 }

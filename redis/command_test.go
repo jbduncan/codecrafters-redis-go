@@ -105,32 +105,33 @@ func TestInfoCommand(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		name     string
 		config   *redis.Config
 		infoKind redis.InfoKind
 		response string
 	}{
 		{
-			config: &redis.Config{
-				Replication: &redis.ReplicationConfig{
-					Role: redis.ReplicationRoleMaster,
-				},
-			},
+			name:     "role:master master_replid:some-repl-id master_repl_offset:0",
+			config:   masterRedisConfig,
 			infoKind: redis.InfoKindReplication,
-			response: "$11\r\nrole:master\r\n",
+			response: "$59\r\nrole:master\nmaster_replid:some-repl-id\nmaster_repl_offset:0\r\n",
 		},
 		{
-			config: &redis.Config{
-				Replication: &redis.ReplicationConfig{
-					Role: redis.ReplicationRoleSlave,
-				},
-			},
+			name:     "role:master master_replid:some-other-repl-id master_repl_offset:0",
+			config:   masterRedisConfigWithOtherReplID,
+			infoKind: redis.InfoKindReplication,
+			response: "$65\r\nrole:master\nmaster_replid:some-other-repl-id\nmaster_repl_offset:0\r\n",
+		},
+		{
+			name:     "role:slave",
+			config:   slaveRedisConfig,
 			infoKind: redis.InfoKindReplication,
 			response: "$10\r\nrole:slave\r\n",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(string(tt.infoKind), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			response := redis.NewInfoCommand(tt.config, tt.infoKind).Run()
 			if response != tt.response {
 				t.Errorf(`command expected to return %#v but was %#v`, tt.response, response)
