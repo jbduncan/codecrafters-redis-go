@@ -34,12 +34,12 @@ type GetCommand struct {
 func (g GetCommand) Run() string {
 	result, ok := g.store.Get(g.key)
 	if !ok {
-		return "$-1\r\n"
+		return nullBulkString
 	}
 
 	expiryTime := result.ExpiryTime()
 	if expiryTime != nil && g.clock.Now().After(*expiryTime) {
-		return "$-1\r\n"
+		return nullBulkString
 	}
 
 	return bulkString(result.Data())
@@ -58,6 +58,12 @@ func NewInfoCommand(config *Config, infoKind InfoKind) *InfoCommand {
 	}
 }
 
+const (
+	roleKey             = "role"
+	masterReplIDKey     = "master_replid"
+	masterReplOffsetKey = "master_repl_offset"
+)
+
 type InfoCommand struct {
 	config   *Config
 	infoKind InfoKind
@@ -65,11 +71,11 @@ type InfoCommand struct {
 
 func (i *InfoCommand) Run() string {
 	var entries []string
-	entries = append(entries, "role:"+string(i.config.Replication.Role.String()))
+	entries = append(entries, roleKey+":"+string(i.config.Replication.Role().String()))
 	masterConfig := i.config.Replication.Master
 	if masterConfig != nil {
-		entries = append(entries, "master_replid:"+masterConfig.ReplID)
-		entries = append(entries, "master_repl_offset:0")
+		entries = append(entries, masterReplIDKey+":"+masterConfig.ReplID)
+		entries = append(entries, masterReplOffsetKey+":0")
 	}
 	return bulkString(strings.Join(entries, "\n"))
 }
@@ -137,6 +143,8 @@ func ExpiryTime(t time.Time) func(*SetCommand) {
 		command.expiryTime = &t
 	}
 }
+
+const nullBulkString = "$-1\r\n"
 
 func bulkString(s string) string {
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)

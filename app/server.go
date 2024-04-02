@@ -81,20 +81,17 @@ func main() {
 	defer errorHandlingClose(listener)
 	fmt.Printf("Server is listening on port %d\n", port)
 
-	var role redis.ReplicationRole
+	var replicationMasterConfig *redis.ReplicationMasterConfig
 	if replicaOf == nil {
-		role = redis.ReplicationRoleMaster
-	} else {
-		role = redis.ReplicationRoleSlave
+		replicationMasterConfig = &redis.ReplicationMasterConfig{
+			ReplID:     randomReplID(),
+			ReplOffset: 0,
+		}
 	}
 
 	config := &redis.Config{
 		Replication: redis.ReplicationConfig{
-			Role: role,
-			Master: &redis.ReplicationMasterConfig{
-				ReplID:     randomReplID(),
-				ReplOffset: 0,
-			},
+			Master: replicationMasterConfig,
 		},
 	}
 	store := redis.NewStore()

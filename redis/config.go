@@ -7,8 +7,14 @@ type Config struct {
 }
 
 type ReplicationConfig struct {
-	Role   ReplicationRole
 	Master *ReplicationMasterConfig
+}
+
+func (r ReplicationConfig) Role() ReplicationRole {
+	if r.Master != nil {
+		return ReplicationRoleMaster
+	}
+	return ReplicationRoleSlave
 }
 
 type ReplicationRole int
