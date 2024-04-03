@@ -82,7 +82,7 @@ func (p Parser) newSetCommand(array []string) (Command, error) {
 				p.store,
 				array[1],
 				array[2],
-				ExpiryTime(p.clock.Now().Add(expiryTime)),
+				ExpiryTime(p.clock.NowMonotonic().Add(expiryTime)),
 			),
 			nil
 	}

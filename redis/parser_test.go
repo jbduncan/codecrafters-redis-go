@@ -279,7 +279,7 @@ func TestParser_ParseSetRequest(t *testing.T) {
 					store,
 					tt.key,
 					tt.value,
-					redis.ExpiryTime(clock.Now().Add(*tt.ttl)),
+					redis.ExpiryTime(clock.NowMonotonic().Add(*tt.ttl)),
 				)
 			}
 			if !setCommand.Equal(want) {

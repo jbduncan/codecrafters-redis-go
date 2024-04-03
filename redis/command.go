@@ -38,7 +38,7 @@ func (g GetCommand) Run() string {
 	}
 
 	expiryTime := result.ExpiryTime()
-	if expiryTime != nil && g.clock.Now().After(*expiryTime) {
+	if expiryTime != nil && g.clock.NowMonotonic().After(*expiryTime) {
 		return nullBulkString
 	}
 
