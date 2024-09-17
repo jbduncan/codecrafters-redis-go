@@ -75,22 +75,32 @@ func main() {
 	flag.Parse()
 
 	var replicationMasterConfig *redis.ReplicationMasterConfig
+	var replicationSlaveConfig *redis.ReplicationSlaveConfig
 	if replicaOf == nil {
 		replicationMasterConfig = &redis.ReplicationMasterConfig{
 			ReplID:     randomReplID(),
 			ReplOffset: 0,
+		}
+	} else {
+		replicationSlaveConfig = &redis.ReplicationSlaveConfig{
+			MasterHost: replicaOf.host,
+			MasterPort: replicaOf.port,
 		}
 	}
 
 	config := &redis.Config{
 		Replication: redis.ReplicationConfig{
 			Master: replicationMasterConfig,
+			Slave:  replicationSlaveConfig,
 		},
 	}
 	store := redis.NewStore()
 	clock := redis.RealClock{}
 	redisParser := redis.NewParser(config, store, clock)
 
+	if config.Replication.Slave != nil {
+		replicateMaster(config.Replication.Slave)
+	}
 	startTCPServer(redisParser)
 }
 
@@ -139,6 +149,28 @@ func randomReplID() string {
 		result[i] = alphabet[num.Int64()]
 	}
 	return string(result)
+}
+
+func replicateMaster(slaveConfig *redis.ReplicationSlaveConfig) {
+	handleErr := func(err error) {
+		printErr(fmt.Errorf("cannot replicate master: %w", err))
+		os.Exit(1)
+	}
+
+	masterAddress, err := slaveConfig.MasterAddress()
+	if err != nil {
+		handleErr(err)
+	}
+	conn, err := net.Dial("tcp", masterAddress.String())
+	if err != nil {
+		handleErr(err)
+	}
+
+	pingCommand := redis.PingCommand{}.Run()
+	_, err = io.WriteString(conn, pingCommand)
+	if err != nil {
+		handleErr(err)
+	}
 }
 
 func startTCPServer(redisParser redis.Parser) {

@@ -57,7 +57,7 @@ func (p Parser) processArrayRequest(bufReader *bufio.Reader) (Command, error) {
 	case strings.EqualFold(array[0], "INFO"):
 		return p.makeInfoCommand(array)
 	case strings.EqualFold(array[0], "PING"):
-		return p.makePingCommand(array)
+		return p.makePongCommand(array)
 	case strings.EqualFold(array[0], "SET"):
 		return p.newSetCommand(array)
 	}
@@ -89,11 +89,11 @@ func (p Parser) newSetCommand(array []string) (Command, error) {
 	return NewSetCommand(p.store, array[1], array[2]), nil
 }
 
-func (p Parser) makePingCommand(array []string) (Command, error) {
+func (p Parser) makePongCommand(array []string) (Command, error) {
 	if len(array) != 1 {
 		// TODO: return error that server.go can match on
 	}
-	return PingCommand{}, nil
+	return PongCommand{}, nil
 }
 
 func (p Parser) makeInfoCommand(array []string) (Command, error) {

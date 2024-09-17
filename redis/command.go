@@ -71,7 +71,7 @@ type InfoCommand struct {
 
 func (i *InfoCommand) Run() string {
 	var entries []string
-	entries = append(entries, roleKey+":"+string(i.config.Replication.Role().String()))
+	entries = append(entries, roleKey+":"+i.config.Replication.Role().String())
 	masterConfig := i.config.Replication.Master
 	if masterConfig != nil {
 		entries = append(entries, masterReplIDKey+":"+masterConfig.ReplID)
@@ -83,6 +83,12 @@ func (i *InfoCommand) Run() string {
 type PingCommand struct{}
 
 func (p PingCommand) Run() string {
+	return arrayString([]string{"PING"})
+}
+
+type PongCommand struct{}
+
+func (p PongCommand) Run() string {
 	return simpleString("PONG")
 }
 
@@ -146,10 +152,19 @@ func ExpiryTime(t time.Time) func(*SetCommand) {
 
 const nullBulkString = "$-1\r\n"
 
+func simpleString(s string) string {
+	return fmt.Sprintf("+%s\r\n", s)
+}
+
 func bulkString(s string) string {
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)
 }
 
-func simpleString(s string) string {
-	return fmt.Sprintf("+%s\r\n", s)
+func arrayString(s []string) string {
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("*%d\r\n", len(s)))
+	for _, ss := range s {
+		result.WriteString(bulkString(ss))
+	}
+	return result.String()
 }
