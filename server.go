@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -13,7 +12,11 @@ const (
 )
 
 func main() {
-	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", defaultPort))
+	run()
+}
+
+func run() {
+	l, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", defaultPort))
 	if err != nil {
 		printErr(fmt.Errorf("port %d not bound: %w", defaultPort, err))
 		os.Exit(1)
@@ -27,14 +30,4 @@ func main() {
 		os.Exit(1)
 	}
 	defer errorHandlingClose(l)
-}
-
-func errorHandlingClose(closer io.Closer) {
-	if err := closer.Close(); err != nil {
-		printErr(err)
-	}
-}
-
-func printErr(err error) {
-	slog.Error(fmt.Sprintf("%v", err))
 }

@@ -15,7 +15,7 @@ fi
 
 main () {
     git push origin master
-    git push github v2
+    git push github master:v2
 }
 
 main
