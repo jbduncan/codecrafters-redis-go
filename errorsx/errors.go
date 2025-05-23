@@ -1,4 +1,4 @@
-package main
+package errorsx
 
 import (
 	"fmt"
@@ -6,12 +6,12 @@ import (
 	"log/slog"
 )
 
-func printErr(err error) {
+func Log(err error) {
 	slog.Error(fmt.Sprintf("%v", err))
 }
 
-func errorHandlingClose(closer io.Closer) {
+func Close(closer io.Closer) {
 	if err := closer.Close(); err != nil {
-		printErr(err)
+		Log(err)
 	}
 }

@@ -1,34 +1,33 @@
 package redis
 
 import (
+	"github.com/codecrafters-io/redis-starter-go/errorsx"
 	"io"
 )
 
 type TCPConn io.ReadWriteCloser
 
-type TCPListener func() (TCPConn, error)
+type TCPConnAccepter func() (TCPConn, error)
 
 type Handler struct {
-	tcpListener TCPListener
+	tcpConnAccepter TCPConnAccepter
 }
 
-func NewHandler(tcpListener TCPListener) *Handler {
+func NewHandler(tcpConnAccepter TCPConnAccepter) *Handler {
 	return &Handler{
-		tcpListener: tcpListener,
+		tcpConnAccepter: tcpConnAccepter,
 	}
 }
 
 func (h *Handler) Handle() {
-	tcpConn, err := h.tcpListener()
+	tcpConn, err := h.tcpConnAccepter()
 	if err != nil {
-		// TODO: handle error
+		errorsx.Log(err)
+		return
 	}
+	defer errorsx.Close(tcpConn)
 	if _, err := io.WriteString(tcpConn, "+PONG\r\n"); err != nil {
-		// TODO: handle error
+		errorsx.Log(err)
+		return
 	}
-}
-
-func (h *Handler) Close() error {
-	// TODO
-	panic("implement me")
 }

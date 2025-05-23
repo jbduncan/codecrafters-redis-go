@@ -5,6 +5,9 @@ import (
 	"log/slog"
 	"net"
 	"os"
+
+	"github.com/codecrafters-io/redis-starter-go/errorsx"
+	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
 const (
@@ -18,16 +21,13 @@ func main() {
 func run() {
 	l, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", defaultPort))
 	if err != nil {
-		printErr(fmt.Errorf("port %d not bound: %w", defaultPort, err))
+		errorsx.Log(fmt.Errorf("port %d not bound: %w", defaultPort, err))
 		os.Exit(1)
 	}
+	defer errorsx.Close(l)
 
 	slog.Info(fmt.Sprintf("server is listening on port %d", defaultPort))
 
-	_, err = l.Accept()
-	if err != nil {
-		printErr(err)
-		os.Exit(1)
-	}
-	defer errorHandlingClose(l)
+	h := redis.NewHandler(func() (redis.TCPConn, error) { return l.Accept() })
+	h.Handle()
 }

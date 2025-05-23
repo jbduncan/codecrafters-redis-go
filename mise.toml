@@ -7,15 +7,34 @@ go = "latest"
 
 [tasks.build]
 description = "Compile the server."
-run = "go build -o /tmp/codecrafters-build-redis-go server.go"
+run = "go build -o /tmp/codecrafters-build-redis-go ."
 sources = ["go.mod", "go.sum", "**/*.go"]
 outputs = { auto = true }
 alias = "b"
 
+[tasks.spawn]
+description = "Run the server locally."
+run = "/tmp/codecrafters-build-redis-go"
+depends = "build"
+alias = "s"
+quiet = true
+
 [tasks.test]
-description = "Run the tests."
+description = "Run the unit tests."
 run = "go test -shuffle=on -race -cover ./..."
 depends = "build"
 sources = ["go.mod", "go.sum", "**/*.go"]
 outputs = { auto = true }
 alias = "t"
+
+[tasks.integration-test]
+description = "Run the integration tests."
+run = "go test -shuffle=on -race -cover -count=1 -tags=integration ./..."
+depends = "build"
+wait_for = "test"
+alias = "i"
+
+[tasks.check]
+description = "Run all tests."
+depends = ["test", "integration-test"]
+alias = "c"

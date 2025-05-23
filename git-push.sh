@@ -14,6 +14,7 @@ if (( ${DEBUG:-0} )); then
 fi
 
 main () {
+    mise check
     git push origin master
     git push github master:v2
 }
