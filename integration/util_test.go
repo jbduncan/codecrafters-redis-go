@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/codecrafters-io/redis-starter-go/await"
 )
 
 const defaultPort = 6379
@@ -51,22 +53,11 @@ func runServer(t *testing.T) func() {
 }
 
 func awaitServerStartup() error {
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-	timeoutDuration := 5 * time.Second
-	timeout := time.NewTimer(timeoutDuration)
-	defer timeout.Stop()
-	for {
-		select {
-		case <-timeout.C:
-			return fmt.Errorf("server did not start up in %s", timeoutDuration)
-		case <-ticker.C:
-			if serverIsUp() {
-				// Success
-				return nil
-			}
-		}
+	timeout := 5 * time.Second
+	if !await.Until(serverIsUp, timeout, 200*time.Millisecond) {
+		return fmt.Errorf("server did not start up in %s", timeout)
 	}
+	return nil
 }
 
 func serverIsUp() bool {
@@ -75,7 +66,16 @@ func serverIsUp() bool {
 }
 
 func dialServer() (net.Conn, error) {
-	return net.Dial("tcp", fmt.Sprintf("localhost:%d", defaultPort))
+	result, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", defaultPort))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := result.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func stopServer(t *testing.T, serverCmd *exec.Cmd) {

@@ -1,7 +1,8 @@
 package redis
 
 import (
-	"github.com/codecrafters-io/redis-starter-go/errorsx"
+	"bufio"
+	"errors"
 	"io"
 )
 
@@ -22,12 +23,28 @@ func NewHandler(tcpConnAccepter TCPConnAccepter) *Handler {
 func (h *Handler) Handle() {
 	tcpConn, err := h.tcpConnAccepter()
 	if err != nil {
-		errorsx.Log(err)
+		logError(err)
 		return
 	}
-	defer errorsx.Close(tcpConn)
-	if _, err := io.WriteString(tcpConn, "+PONG\r\n"); err != nil {
-		errorsx.Log(err)
-		return
+	defer closeAndLogError(tcpConn)
+
+	connReader := bufio.NewReader(tcpConn)
+	for {
+		nextToken, err := connReader.ReadString('\n')
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				logError(err)
+			}
+			return
+		}
+
+		if nextToken != "PING\r\n" && nextToken != "ping\r\n" {
+			continue
+		}
+
+		if _, err := io.WriteString(tcpConn, "+PONG\r\n"); err != nil {
+			logError(err)
+			return
+		}
 	}
 }

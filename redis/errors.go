@@ -1,4 +1,4 @@
-package errorsx
+package redis
 
 import (
 	"fmt"
@@ -6,12 +6,12 @@ import (
 	"log/slog"
 )
 
-func Log(err error) {
+func logError(err error) {
 	slog.Error(fmt.Sprintf("%v", err))
 }
 
-func Close(closer io.Closer) {
+func closeAndLogError(closer io.Closer) {
 	if err := closer.Close(); err != nil {
-		Log(err)
+		logError(err)
 	}
 }
