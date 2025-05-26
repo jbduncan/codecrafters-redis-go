@@ -13,52 +13,35 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
-type fakeTCPConn struct {
+type spyTCPConn struct {
 	delegate           redis.TCPConn
-	readCalled         bool
 	closeCalled        bool
 	closeCalledLock    *sync.Mutex
-	readErrorToReturn  error
 	writeErrorToReturn error
 }
 
-func newFakeTCPConn(delegate net.Conn) *fakeTCPConn {
-	return &fakeTCPConn{
+func newSpyTCPConn(delegate net.Conn) *spyTCPConn {
+	return &spyTCPConn{
 		delegate:           delegate,
-		readCalled:         false,
 		closeCalled:        false,
 		closeCalledLock:    new(sync.Mutex),
-		readErrorToReturn:  nil,
 		writeErrorToReturn: nil,
 	}
 }
 
-func newFailingOnReadTCPConn(err error) *fakeTCPConn {
-	return &fakeTCPConn{
-		readCalled:         false,
-		closeCalled:        false,
-		closeCalledLock:    new(sync.Mutex),
-		readErrorToReturn:  err,
-		writeErrorToReturn: nil,
-	}
-}
-
-func newFailingOnWriteTCPConn(delegate redis.TCPConn, err error) *fakeTCPConn {
-	return &fakeTCPConn{
+func newFailingOnWriteSpyTCPConn(
+	delegate redis.TCPConn,
+	err error,
+) *spyTCPConn {
+	return &spyTCPConn{
 		delegate:           delegate,
-		readCalled:         false,
 		closeCalled:        false,
 		closeCalledLock:    new(sync.Mutex),
-		readErrorToReturn:  nil,
 		writeErrorToReturn: err,
 	}
 }
 
-func (c *fakeTCPConn) Read(b []byte) (n int, err error) {
-	if c.readErrorToReturn != nil {
-		return 0, c.readErrorToReturn
-	}
-
+func (c *spyTCPConn) Read(b []byte) (n int, err error) {
 	if c.delegate != nil {
 		return c.delegate.Read(b)
 	}
@@ -66,11 +49,7 @@ func (c *fakeTCPConn) Read(b []byte) (n int, err error) {
 	return 0, nil
 }
 
-func (c *fakeTCPConn) ReadCalled() bool {
-	return c.readCalled
-}
-
-func (c *fakeTCPConn) Write(b []byte) (n int, err error) {
+func (c *spyTCPConn) Write(b []byte) (n int, err error) {
 	if c.writeErrorToReturn != nil {
 		return 0, c.writeErrorToReturn
 	}
@@ -82,7 +61,7 @@ func (c *fakeTCPConn) Write(b []byte) (n int, err error) {
 	return 0, nil
 }
 
-func (c *fakeTCPConn) Close() error {
+func (c *spyTCPConn) Close() error {
 	var err error
 	if c.delegate != nil {
 		err = c.delegate.Close()
@@ -95,15 +74,55 @@ func (c *fakeTCPConn) Close() error {
 	return err
 }
 
-func (c *fakeTCPConn) CloseCalled() bool {
+func (c *spyTCPConn) CloseCalled() bool {
 	c.closeCalledLock.Lock()
 	defer c.closeCalledLock.Unlock()
 	return c.closeCalled
 }
 
-func TestHandlerHandle(t *testing.T) {
-	t.Parallel()
+type mockTCPConn struct {
+	readCalled        bool
+	readErrorToReturn error
+}
 
+func newFailingOnReadMockTCPConn(err error) *mockTCPConn {
+	return &mockTCPConn{
+		readCalled:        false,
+		readErrorToReturn: err,
+	}
+}
+
+func (c *mockTCPConn) Read(_ []byte) (n int, err error) {
+	c.readCalled = true
+
+	if c.readErrorToReturn != nil {
+		return 0, c.readErrorToReturn
+	}
+
+	return 0, nil
+}
+
+func (c *mockTCPConn) Write(_ []byte) (n int, err error) {
+	return 0, nil
+}
+
+func (c *mockTCPConn) Close() error {
+	return nil
+}
+
+func (c *mockTCPConn) ReadCalled() bool {
+	return c.readCalled
+}
+
+func netPipe() (net.Conn, net.Conn) {
+	a, b := net.Pipe()
+	deadline := time.Now().Add(10 * time.Second)
+	_ = a.SetDeadline(deadline)
+	_ = b.SetDeadline(deadline)
+	return a, b
+}
+
+func TestHandlerHandle(t *testing.T) {
 	tests := []struct {
 		name            string
 		request         string
@@ -137,19 +156,19 @@ func TestHandlerHandle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			clientConn, serverConn := net.Pipe()
-			closeInterceptingServerConn := newFakeTCPConn(serverConn)
-			deadline := time.Now().Add(10 * time.Second)
-			_ = clientConn.SetDeadline(deadline)
-			_ = serverConn.SetDeadline(deadline)
+			serverConns := make(chan *spyTCPConn, 1)
+			clientConn, serverConn := netPipe()
+			spyServerConn := newSpyTCPConn(serverConn)
+			serverConns <- spyServerConn
 
 			handler := redis.NewHandler(
 				func() (redis.TCPConn, error) {
-					return closeInterceptingServerConn, nil
+					// This will eventually block to stop Handler's inner loop
+					// from looping forever.
+					return <-serverConns, nil
 				},
 			)
+
 			go handler.Handle()
 			if _, err := io.WriteString(clientConn, tt.request); err != nil {
 				t.Fatalf("request not sent through clientConn: %v", err)
@@ -169,11 +188,12 @@ func TestHandlerHandle(t *testing.T) {
 					)
 				}
 			}
+
 			_ = clientConn.Close()
 			if !await.Until(
-				func() bool { return closeInterceptingServerConn.CloseCalled() },
-				3*time.Second,
-				5*time.Millisecond,
+				func() bool { return spyServerConn.CloseCalled() },
+				10*time.Second,
+				10*time.Millisecond,
 			) {
 				t.Error(
 					"Handler.Handle(): expected server connection to be " +
@@ -182,13 +202,48 @@ func TestHandlerHandle(t *testing.T) {
 		})
 	}
 
+	t.Run("two PINGS: two concurrent requests", func(t *testing.T) {
+		serverConns := make(chan *spyTCPConn, 2)
+		clientConn1, serverConn1 := netPipe()
+		serverConns <- newSpyTCPConn(serverConn1)
+		clientConn2, serverConn2 := netPipe()
+		serverConns <- newSpyTCPConn(serverConn2)
+		handler := redis.NewHandler(
+			func() (redis.TCPConn, error) {
+				// This will eventually block to stop Handler's inner loop from
+				// looping forever.
+				return <-serverConns, nil
+			},
+		)
+
+		go handler.Handle()
+		if _, err := io.WriteString(clientConn1, "PING\r\n"); err != nil {
+			t.Fatalf("request not sent through clientConn: %v", err)
+		}
+		if _, err := io.WriteString(clientConn2, "PING\r\n"); err != nil {
+			t.Fatalf("request not sent through clientConn: %v", err)
+		}
+
+		for _, c := range []redis.TCPConn{clientConn1, clientConn2} {
+			resp, err := bufio.NewReader(c).ReadString('\n')
+			if err != nil {
+				t.Fatalf("resp not read: %v", err)
+			}
+			if got, want := resp, "+PONG\r\n"; got != want {
+				t.Errorf(
+					`Handler.Handler(): PING request: got response %q, want %q`,
+					got,
+					want,
+				)
+			}
+		}
+	})
+
 	t.Run(
 		"edge case: when tcpConnAccepter returns error, then no attempt to "+
 			"read the conn is made",
 		func(t *testing.T) {
-			t.Parallel()
-
-			conn := newFailingOnReadTCPConn(errors.New("TCP conn blew up"))
+			conn := newFailingOnReadMockTCPConn(errors.New("TCP conn blew up"))
 			handler := redis.NewHandler(
 				func() (redis.TCPConn, error) {
 					return conn, errors.New("TCP conn blew up")
@@ -208,25 +263,31 @@ func TestHandlerHandle(t *testing.T) {
 	t.Run(
 		"edge case: when TCP conn returns error on write, then conn is closed",
 		func(t *testing.T) {
-			t.Parallel()
+			serverConns := make(chan *spyTCPConn, 1)
+			clientConn, serverConn := netPipe()
+			spyServerConn := newFailingOnWriteSpyTCPConn(
+				serverConn, errors.New("TCP conn blew up"),
+			)
+			serverConns <- spyServerConn
 
-			clientConn, serverConn := net.Pipe()
-			conn := newFailingOnWriteTCPConn(serverConn, errors.New("TCP conn blew up"))
 			handler := redis.NewHandler(
 				func() (redis.TCPConn, error) {
-					return conn, nil
+					// This will eventually block to stop Handler's inner loop
+					// from looping forever.
+					return <-serverConns, nil
 				},
 			)
-
 			go handler.Handle()
 			if _, err := io.WriteString(clientConn, "PING\r\n"); err != nil {
 				t.Fatalf("request not sent through clientConn: %v", err)
 			}
 
 			if !await.Until(
-				func() bool { return conn.CloseCalled() },
-				3*time.Second,
-				5*time.Millisecond,
+				func() bool {
+					return spyServerConn.CloseCalled()
+				},
+				10*time.Second,
+				10*time.Millisecond,
 			) {
 				t.Error(
 					"Handler.Handle(): expected server connection to be " +

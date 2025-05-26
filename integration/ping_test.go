@@ -68,6 +68,50 @@ func TestPing(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("two PINGS: two concurrent requests", func(t *testing.T) {
+		stop := runServer(t)
+		defer stop()
+		conn1, err := dialServer()
+		if err != nil {
+			t.Fatalf("no connection to server: %v", err)
+		}
+		defer loggingClose(t, conn1)
+		conn2, err := dialServer()
+		if err != nil {
+			t.Fatalf("no connection to server: %v", err)
+		}
+		defer loggingClose(t, conn2)
+		conn1Reader := bufio.NewReader(conn1)
+		conn2Reader := bufio.NewReader(conn2)
+
+		if _, err = io.WriteString(conn1, "PING\r\n"); err != nil {
+			t.Fatalf(`did not write message "PING\r\n" successfully: %v`, err)
+		}
+		if _, err = io.WriteString(conn2, "PING\r\n"); err != nil {
+			t.Fatalf(`did not write message "PING\r\n" successfully: %v`, err)
+		}
+
+		got, err := conn1Reader.ReadString('\n')
+		if err != nil {
+			t.Errorf("did not read conn1Reader successfully: %v", err)
+		}
+		if got != "+PONG\r\n" {
+			t.Errorf(
+				`PING request: got response %q, want "+PONG\r\n"`, got,
+			)
+		}
+
+		got, err = conn2Reader.ReadString('\n')
+		if err != nil {
+			t.Errorf("did not read conn2Reader successfully: %v", err)
+		}
+		if got != "+PONG\r\n" {
+			t.Errorf(
+				`PING request: got response %q, want "+PONG\r\n"`, got,
+			)
+		}
+	})
 }
 
 func loggingClose(t *testing.T, closer io.Closer) {

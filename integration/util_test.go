@@ -16,6 +16,9 @@ import (
 const defaultPort = 6379
 
 func runServer(t *testing.T) func() {
+	// TODO: strongly consider calling redis.RunServer() rather than starting
+	//       the binary to save time and make things easier to debug.
+
 	rootDir, err := runCommandAndCaptureOutput("git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		t.Log(rootDir)
@@ -71,7 +74,7 @@ func dialServer() (net.Conn, error) {
 		return nil, err
 	}
 
-	if err := result.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+	if err := result.SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
 		return nil, err
 	}
 
@@ -79,7 +82,9 @@ func dialServer() (net.Conn, error) {
 }
 
 func stopServer(t *testing.T, serverCmd *exec.Cmd) {
-	if err := serverCmd.Process.Signal(os.Interrupt); err != nil {
+	// TODO: Replace with serverCmd.Process.Signal(os.Interrupt) when the
+	//       server can gracefully shut down.
+	if err := serverCmd.Process.Kill(); err != nil {
 		t.Fatalf("server did not stop gracefully: %v", err)
 	}
 }

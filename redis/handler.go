@@ -22,18 +22,15 @@ func NewHandler(tcpConnAccepter TCPConnAccepter) *Handler {
 }
 
 func (h *Handler) Handle() {
-	h.doHandle()
-}
+	for {
+		tcpConn, err := h.tcpConnAccepter()
+		if err != nil {
+			logError(err)
+			return
+		}
 
-func (h *Handler) doHandle() {
-	tcpConn, err := h.tcpConnAccepter()
-	if err != nil {
-		logError(err)
-		return
+		go h.handleConn(tcpConn)
 	}
-	defer closeAndLogError(tcpConn)
-
-	h.handleConn(tcpConn)
 }
 
 var (
@@ -43,6 +40,8 @@ var (
 )
 
 func (h *Handler) handleConn(tcpConn TCPConn) {
+	defer closeAndLogError(tcpConn)
+
 	connReader := bufio.NewReader(tcpConn)
 	for {
 		nextToken, err := connReader.ReadSlice('\n')
