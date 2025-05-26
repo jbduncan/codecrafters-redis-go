@@ -18,6 +18,8 @@ const defaultPort = 6379
 func runServer(t *testing.T) func() {
 	// TODO: strongly consider calling redis.RunServer() rather than starting
 	//       the binary to save time and make things easier to debug.
+	// TODO: if doing the above, keep one test around that does a smoke test
+	//       against the binary.
 
 	rootDir, err := runCommandAndCaptureOutput("git", "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -41,14 +43,10 @@ func runServer(t *testing.T) func() {
 		t.Fatalf("server did not start: %v", err)
 	}
 
-	// TODO: Uncomment once the server can handle many connections
-	//if err := awaitServerStartup(); err != nil {
-	//	t.Error(err.Error())
-	//	stopServer(t, serverCmd)
-	//}
-
-	// TODO: remove once the server can handle many connections
-	time.Sleep(2 * time.Second)
+	if err := awaitServerStartup(); err != nil {
+		t.Error(err.Error())
+		stopServer(t, serverCmd)
+	}
 
 	return func() {
 		stopServer(t, serverCmd)
@@ -83,7 +81,9 @@ func dialServer() (net.Conn, error) {
 
 func stopServer(t *testing.T, serverCmd *exec.Cmd) {
 	// TODO: Replace with serverCmd.Process.Signal(os.Interrupt) when the
-	//       server can gracefully shut down.
+	//       server can gracefully shut down:
+	//   - https://victoriametrics.com/blog/go-graceful-shutdown/
+	//   - https://www.rudderstack.com/blog/implementing-graceful-shutdown-in-go/
 	if err := serverCmd.Process.Kill(); err != nil {
 		t.Fatalf("server did not stop gracefully: %v", err)
 	}

@@ -22,6 +22,8 @@ func NewHandler(tcpConnAccepter TCPConnAccepter) *Handler {
 }
 
 func (h *Handler) Handle() {
+	// TODO: Refactor to use a multi-producer, single-consumer architecture
+	//       like an event loop.
 	for {
 		tcpConn, err := h.tcpConnAccepter()
 		if err != nil {
