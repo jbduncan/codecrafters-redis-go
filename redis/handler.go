@@ -3,6 +3,7 @@ package redis
 import (
 	"bufio"
 	"bytes"
+	"encoding"
 	"errors"
 	"io"
 )
@@ -11,39 +12,62 @@ type TCPConn io.ReadWriteCloser
 
 type TCPConnAccepter func() (TCPConn, error)
 
-type Handler struct {
-	tcpConnAccepter TCPConnAccepter
-}
-
-func NewHandler(tcpConnAccepter TCPConnAccepter) *Handler {
-	return &Handler{
-		tcpConnAccepter: tcpConnAccepter,
-	}
-}
-
-func (h *Handler) Handle() {
-	// TODO: Refactor to use a multi-producer, single-consumer architecture
-	//       like an event loop.
-	for {
-		tcpConn, err := h.tcpConnAccepter()
-		if err != nil {
-			logError(err)
-			return
-		}
-
-		go h.handleConn(tcpConn)
-	}
-}
-
 var (
 	upperPing = []byte("PING\r\n")
 	lowerPing = []byte("ping\r\n")
 	pong      = []byte("+PONG\r\n")
 )
 
-func (h *Handler) handleConn(tcpConn TCPConn) {
-	defer closeAndLogError(tcpConn)
+type pingCommand struct{}
 
+func (p pingCommand) MarshalText() ([]byte, error) {
+	return pong, nil
+}
+
+type command encoding.TextMarshaler
+
+type event struct {
+	cmd  command
+	conn TCPConn
+}
+
+type Handler struct {
+	tcpConnAccepter TCPConnAccepter
+	events          chan event
+}
+
+func NewHandler(tcpConnAccepter TCPConnAccepter) *Handler {
+	return &Handler{
+		tcpConnAccepter: tcpConnAccepter,
+		events:          make(chan event, 512),
+	}
+}
+
+func (h *Handler) Handle() {
+	go func() {
+		for {
+			tcpConn, err := h.tcpConnAccepter()
+			if err != nil {
+				logError(err)
+				return
+			}
+
+			go h.handleConn(tcpConn)
+		}
+	}()
+
+	for e := range h.events {
+		text, err := e.cmd.MarshalText()
+		if err != nil {
+			// TODO: ERR response
+		}
+		if _, err := e.conn.Write(text); err != nil {
+			logError(err)
+		}
+	}
+}
+
+func (h *Handler) handleConn(tcpConn TCPConn) {
 	connReader := bufio.NewReader(tcpConn)
 	for {
 		nextToken, err := connReader.ReadSlice('\n')
@@ -59,9 +83,9 @@ func (h *Handler) handleConn(tcpConn TCPConn) {
 			continue
 		}
 
-		if _, err := tcpConn.Write(pong); err != nil {
-			logError(err)
-			return
+		h.events <- event{
+			cmd:  pingCommand{},
+			conn: tcpConn,
 		}
 	}
 }

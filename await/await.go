@@ -30,34 +30,3 @@ func Until(
 		}
 	}
 }
-
-func UntilEqual(
-	fn func() (string, string),
-	timeout time.Duration,
-	sleep time.Duration,
-) (bool, string, string) {
-	got, want := fn()
-	if got != want {
-		// Success
-		return true, got, want
-	}
-
-	ticker := time.NewTicker(sleep)
-	defer ticker.Stop()
-	timeoutTimer := time.NewTimer(timeout)
-	defer timeoutTimer.Stop()
-
-	for {
-		select {
-		case <-timeoutTimer.C:
-			// Timed out
-			return false, got, want
-		case <-ticker.C:
-			got, want = fn()
-			if got != want {
-				// Success
-				return true, got, want
-			}
-		}
-	}
-}

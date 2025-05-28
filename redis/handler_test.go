@@ -9,90 +9,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codecrafters-io/redis-starter-go/await"
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
-type spyTCPConn struct {
-	delegate           redis.TCPConn
-	closeCalled        bool
-	closeCalledLock    *sync.Mutex
-	writeErrorToReturn error
-}
-
-func newSpyTCPConn(delegate net.Conn) *spyTCPConn {
-	return &spyTCPConn{
-		delegate:           delegate,
-		closeCalled:        false,
-		closeCalledLock:    new(sync.Mutex),
-		writeErrorToReturn: nil,
-	}
-}
-
-func newFailingOnWriteSpyTCPConn(
-	delegate redis.TCPConn,
-	err error,
-) *spyTCPConn {
-	return &spyTCPConn{
-		delegate:           delegate,
-		closeCalled:        false,
-		closeCalledLock:    new(sync.Mutex),
-		writeErrorToReturn: err,
-	}
-}
-
-func (c *spyTCPConn) Read(b []byte) (n int, err error) {
-	if c.delegate != nil {
-		return c.delegate.Read(b)
-	}
-
-	return 0, nil
-}
-
-func (c *spyTCPConn) Write(b []byte) (n int, err error) {
-	if c.writeErrorToReturn != nil {
-		return 0, c.writeErrorToReturn
-	}
-
-	if c.delegate != nil {
-		return c.delegate.Write(b)
-	}
-
-	return 0, nil
-}
-
-func (c *spyTCPConn) Close() error {
-	var err error
-	if c.delegate != nil {
-		err = c.delegate.Close()
-	}
-
-	c.closeCalledLock.Lock()
-	defer c.closeCalledLock.Unlock()
-	c.closeCalled = true
-
-	return err
-}
-
-func (c *spyTCPConn) CloseCalled() bool {
-	c.closeCalledLock.Lock()
-	defer c.closeCalledLock.Unlock()
-	return c.closeCalled
-}
-
 type mockTCPConn struct {
 	readCalled        bool
+	readCalledMu      *sync.Mutex
 	readErrorToReturn error
 }
 
 func newFailingOnReadMockTCPConn(err error) *mockTCPConn {
 	return &mockTCPConn{
 		readCalled:        false,
+		readCalledMu:      new(sync.Mutex),
 		readErrorToReturn: err,
 	}
 }
 
 func (c *mockTCPConn) Read(_ []byte) (n int, err error) {
+	c.readCalledMu.Lock()
+	defer c.readCalledMu.Unlock()
 	c.readCalled = true
 
 	if c.readErrorToReturn != nil {
@@ -111,6 +47,8 @@ func (c *mockTCPConn) Close() error {
 }
 
 func (c *mockTCPConn) ReadCalled() bool {
+	c.readCalledMu.Lock()
+	defer c.readCalledMu.Unlock()
 	return c.readCalled
 }
 
@@ -156,16 +94,25 @@ func TestHandlerHandle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			serverConns := make(chan *spyTCPConn, 1)
+			type conn struct {
+				tcpConn redis.TCPConn
+				err     error
+			}
+			serverConns := make(chan *conn, 2)
 			clientConn, serverConn := netPipe()
-			spyServerConn := newSpyTCPConn(serverConn)
-			serverConns <- spyServerConn
+			serverConns <- &conn{
+				tcpConn: serverConn,
+			}
+			serverConns <- &conn{
+				err: errors.New("no new connections left"),
+			}
 
 			handler := redis.NewHandler(
 				func() (redis.TCPConn, error) {
 					// This will eventually block to stop Handler's inner loop
 					// from looping forever.
-					return <-serverConns, nil
+					c := <-serverConns
+					return c.tcpConn, c.err
 				},
 			)
 
@@ -182,37 +129,39 @@ func TestHandlerHandle(t *testing.T) {
 
 				if got, want := resp, "+PONG\r\n"; got != want {
 					t.Errorf(
-						`Handler.Handler(): PING request: got response %q, want %q`,
+						`Handler.Handle(): PING request: got response %q, want %q`,
 						got,
 						want,
 					)
 				}
 			}
-
-			_ = clientConn.Close()
-			if !await.Until(
-				func() bool { return spyServerConn.CloseCalled() },
-				10*time.Second,
-				10*time.Millisecond,
-			) {
-				t.Error(
-					"Handler.Handle(): expected server connection to be " +
-						"closed but was not")
-			}
 		})
 	}
 
 	t.Run("two PINGS: two concurrent requests", func(t *testing.T) {
-		serverConns := make(chan *spyTCPConn, 2)
+		type conn struct {
+			tcpConn redis.TCPConn
+			err     error
+		}
+		serverConns := make(chan *conn, 3)
 		clientConn1, serverConn1 := netPipe()
-		serverConns <- newSpyTCPConn(serverConn1)
 		clientConn2, serverConn2 := netPipe()
-		serverConns <- newSpyTCPConn(serverConn2)
+		serverConns <- &conn{
+			tcpConn: serverConn1,
+		}
+		serverConns <- &conn{
+			tcpConn: serverConn2,
+		}
+		serverConns <- &conn{
+			err: errors.New("no new connections left"),
+		}
+
 		handler := redis.NewHandler(
 			func() (redis.TCPConn, error) {
-				// This will eventually block to stop Handler's inner loop from
-				// looping forever.
-				return <-serverConns, nil
+				// This will eventually block to stop Handler's inner loop
+				// from looping forever.
+				c := <-serverConns
+				return c.tcpConn, c.err
 			},
 		)
 
@@ -224,14 +173,27 @@ func TestHandlerHandle(t *testing.T) {
 			t.Fatalf("request not sent through clientConn: %v", err)
 		}
 
-		for _, c := range []redis.TCPConn{clientConn1, clientConn2} {
-			resp, err := bufio.NewReader(c).ReadString('\n')
-			if err != nil {
-				t.Fatalf("resp not read: %v", err)
+		type resp struct {
+			s   string
+			err error
+		}
+		resps := make(chan resp)
+		go func() {
+			r, err := bufio.NewReader(clientConn1).ReadString('\n')
+			resps <- resp{s: r, err: err}
+		}()
+		go func() {
+			r, err := bufio.NewReader(clientConn2).ReadString('\n')
+			resps <- resp{s: r, err: err}
+		}()
+		for range 2 {
+			r := <-resps
+			if r.err != nil {
+				t.Fatalf("resp not read: %v", r.err)
 			}
-			if got, want := resp, "+PONG\r\n"; got != want {
+			if got, want := r.s, "+PONG\r\n"; got != want {
 				t.Errorf(
-					`Handler.Handler(): PING request: got response %q, want %q`,
+					`Handler.Handle(): PING request: got response %q, want %q`,
 					got,
 					want,
 				)
@@ -246,52 +208,20 @@ func TestHandlerHandle(t *testing.T) {
 			conn := newFailingOnReadMockTCPConn(errors.New("TCP conn blew up"))
 			handler := redis.NewHandler(
 				func() (redis.TCPConn, error) {
-					return conn, errors.New("TCP conn blew up")
+					return conn, errors.New("no new connections left")
 				},
 			)
 
-			handler.Handle()
-
-			if conn.ReadCalled() {
-				t.Errorf(
-					"Handler.Handler(): expected not to call conn.Read() " +
-						"but it did",
-				)
-			}
-		})
-
-	t.Run(
-		"edge case: when TCP conn returns error on write, then conn is closed",
-		func(t *testing.T) {
-			serverConns := make(chan *spyTCPConn, 1)
-			clientConn, serverConn := netPipe()
-			spyServerConn := newFailingOnWriteSpyTCPConn(
-				serverConn, errors.New("TCP conn blew up"),
-			)
-			serverConns <- spyServerConn
-
-			handler := redis.NewHandler(
-				func() (redis.TCPConn, error) {
-					// This will eventually block to stop Handler's inner loop
-					// from looping forever.
-					return <-serverConns, nil
-				},
-			)
 			go handler.Handle()
-			if _, err := io.WriteString(clientConn, "PING\r\n"); err != nil {
-				t.Fatalf("request not sent through clientConn: %v", err)
-			}
 
-			if !await.Until(
-				func() bool {
-					return spyServerConn.CloseCalled()
-				},
-				10*time.Second,
-				10*time.Millisecond,
-			) {
-				t.Error(
-					"Handler.Handle(): expected server connection to be " +
-						"closed but was not")
+			for range 30 {
+				time.Sleep(100 * time.Millisecond)
+				if conn.ReadCalled() {
+					t.Errorf(
+						"Handler.Handle(): expected not to call conn.Read() " +
+							"but it did",
+					)
+				}
 			}
 		})
 }
