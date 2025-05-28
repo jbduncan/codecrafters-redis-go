@@ -23,6 +23,5 @@ func RunServer() {
 
 	slog.Info(fmt.Sprintf("server is listening on port %d", defaultPort))
 
-	h := NewHandler(func() (TCPConn, error) { return l.Accept() })
-	h.Handle()
+	NewDispatcher(func() (TCPConn, error) { return l.Accept() }).Run()
 }

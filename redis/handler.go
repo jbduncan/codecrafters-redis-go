@@ -31,32 +31,32 @@ type event struct {
 	conn TCPConn
 }
 
-type Handler struct {
+type Dispatcher struct {
 	tcpConnAccepter TCPConnAccepter
 	events          chan event
 }
 
-func NewHandler(tcpConnAccepter TCPConnAccepter) *Handler {
-	return &Handler{
+func NewDispatcher(tcpConnAccepter TCPConnAccepter) *Dispatcher {
+	return &Dispatcher{
 		tcpConnAccepter: tcpConnAccepter,
 		events:          make(chan event, 512),
 	}
 }
 
-func (h *Handler) Handle() {
+func (d *Dispatcher) Run() {
 	go func() {
 		for {
-			tcpConn, err := h.tcpConnAccepter()
+			tcpConn, err := d.tcpConnAccepter()
 			if err != nil {
 				logError(err)
 				return
 			}
 
-			go h.handleConn(tcpConn)
+			go d.handleConn(tcpConn)
 		}
 	}()
 
-	for e := range h.events {
+	for e := range d.events {
 		text, err := e.cmd.MarshalText()
 		if err != nil {
 			// TODO: ERR response
@@ -67,7 +67,7 @@ func (h *Handler) Handle() {
 	}
 }
 
-func (h *Handler) handleConn(tcpConn TCPConn) {
+func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 	connReader := bufio.NewReader(tcpConn)
 	for {
 		nextToken, err := connReader.ReadSlice('\n')
@@ -83,7 +83,7 @@ func (h *Handler) handleConn(tcpConn TCPConn) {
 			continue
 		}
 
-		h.events <- event{
+		d.events <- event{
 			cmd:  pingCommand{},
 			conn: tcpConn,
 		}

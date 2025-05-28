@@ -60,7 +60,7 @@ func netPipe() (net.Conn, net.Conn) {
 	return a, b
 }
 
-func TestHandlerHandle(t *testing.T) {
+func TestDispatcher_Run(t *testing.T) {
 	tests := []struct {
 		name            string
 		request         string
@@ -107,16 +107,16 @@ func TestHandlerHandle(t *testing.T) {
 				err: errors.New("no new connections left"),
 			}
 
-			handler := redis.NewHandler(
+			dispatcher := redis.NewDispatcher(
 				func() (redis.TCPConn, error) {
-					// This will eventually block to stop Handler's inner loop
+					// This will eventually block to stop Dispatcher's inner loop
 					// from looping forever.
 					c := <-serverConns
 					return c.tcpConn, c.err
 				},
 			)
 
-			go handler.Handle()
+			go dispatcher.Run()
 			if _, err := io.WriteString(clientConn, tt.request); err != nil {
 				t.Fatalf("request not sent through clientConn: %v", err)
 			}
@@ -129,7 +129,7 @@ func TestHandlerHandle(t *testing.T) {
 
 				if got, want := resp, "+PONG\r\n"; got != want {
 					t.Errorf(
-						`Handler.Handle(): PING request: got response %q, want %q`,
+						`Dispatcher.Run(): PING request: got response %q, want %q`,
 						got,
 						want,
 					)
@@ -156,16 +156,16 @@ func TestHandlerHandle(t *testing.T) {
 			err: errors.New("no new connections left"),
 		}
 
-		handler := redis.NewHandler(
+		dispatcher := redis.NewDispatcher(
 			func() (redis.TCPConn, error) {
-				// This will eventually block to stop Handler's inner loop
+				// This will eventually block to stop Dispatcher's inner loop
 				// from looping forever.
 				c := <-serverConns
 				return c.tcpConn, c.err
 			},
 		)
 
-		go handler.Handle()
+		go dispatcher.Run()
 		if _, err := io.WriteString(clientConn1, "PING\r\n"); err != nil {
 			t.Fatalf("request not sent through clientConn: %v", err)
 		}
@@ -193,7 +193,7 @@ func TestHandlerHandle(t *testing.T) {
 			}
 			if got, want := r.s, "+PONG\r\n"; got != want {
 				t.Errorf(
-					`Handler.Handle(): PING request: got response %q, want %q`,
+					`Dispatcher.Run(): PING request: got response %q, want %q`,
 					got,
 					want,
 				)
@@ -206,19 +206,19 @@ func TestHandlerHandle(t *testing.T) {
 			"read the conn is made",
 		func(t *testing.T) {
 			conn := newFailingOnReadMockTCPConn(errors.New("TCP conn blew up"))
-			handler := redis.NewHandler(
+			dispatcher := redis.NewDispatcher(
 				func() (redis.TCPConn, error) {
 					return conn, errors.New("no new connections left")
 				},
 			)
 
-			go handler.Handle()
+			go dispatcher.Run()
 
 			for range 30 {
 				time.Sleep(100 * time.Millisecond)
 				if conn.ReadCalled() {
 					t.Errorf(
-						"Handler.Handle(): expected not to call conn.Read() " +
+						"Dispatcher.Run(): expected not to call conn.Read() " +
 							"but it did",
 					)
 				}
