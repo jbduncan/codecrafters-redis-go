@@ -12,6 +12,11 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
+type conn struct {
+	tcpConn redis.TCPConn
+	err     error
+}
+
 type mockTCPConn struct {
 	readCalled        bool
 	readCalledMu      *sync.Mutex
@@ -61,6 +66,8 @@ func netPipe() (net.Conn, net.Conn) {
 }
 
 func TestDispatcher_Run(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		request         string
@@ -94,10 +101,6 @@ func TestDispatcher_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			type conn struct {
-				tcpConn redis.TCPConn
-				err     error
-			}
 			serverConns := make(chan *conn, 2)
 			clientConn, serverConn := netPipe()
 			serverConns <- &conn{
@@ -139,10 +142,6 @@ func TestDispatcher_Run(t *testing.T) {
 	}
 
 	t.Run("two PINGS: two concurrent requests", func(t *testing.T) {
-		type conn struct {
-			tcpConn redis.TCPConn
-			err     error
-		}
 		serverConns := make(chan *conn, 3)
 		clientConn1, serverConn1 := netPipe()
 		clientConn2, serverConn2 := netPipe()
@@ -217,7 +216,7 @@ func TestDispatcher_Run(t *testing.T) {
 			for range 30 {
 				time.Sleep(100 * time.Millisecond)
 				if conn.ReadCalled() {
-					t.Errorf(
+					t.Fatalf(
 						"Dispatcher.Run(): expected not to call conn.Read() " +
 							"but it did",
 					)
