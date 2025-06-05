@@ -75,7 +75,11 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			s := redis.NewRESP2Scanner(tt.input)
 			got := s.Scan()
 
-			if diff := cmp.Diff(tt.want, got, equateSimpleErrors()); diff != "" {
+			if diff := cmp.Diff(
+				tt.want,
+				got,
+				equateSimpleErrors(),
+			); diff != "" {
 				t.Errorf("Scan() mismatch (-want +got):\n%s", diff)
 			}
 		})

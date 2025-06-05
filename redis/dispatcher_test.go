@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/redis"
+	"github.com/codecrafters-io/redis-starter-go/repeat"
 )
 
 type conn struct {
@@ -213,14 +214,17 @@ func TestDispatcher_Run(t *testing.T) {
 
 			go dispatcher.Run()
 
-			for range 30 {
-				time.Sleep(100 * time.Millisecond)
-				if conn.ReadCalled() {
-					t.Fatalf(
-						"Dispatcher.Run(): expected not to call conn.Read() " +
-							"but it did",
-					)
-				}
+			if !repeat.Whilst(
+				func() bool {
+					return !conn.ReadCalled()
+				},
+				3*time.Second,
+				100*time.Millisecond,
+			) {
+				t.Fatalf(
+					"Dispatcher.Run(): expected not to call conn.Read() " +
+						"but it did",
+				)
 			}
 		})
 }
