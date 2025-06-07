@@ -58,6 +58,13 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 		} else {
 			value, err = s.bulkString()
 		}
+	case '*':
+		next, _ := s.peek()
+		if next == '-' {
+			value, err = s.nullArray()
+		} else {
+			// Array scanning will go here.
+		}
 	default:
 		s.addToToken(b)
 		value, err = s.simpleString()
@@ -99,22 +106,37 @@ func (s *RESP2Scanner) bulkString() (Value, error) {
 }
 
 func (s *RESP2Scanner) nullBulkString() (Value, error) {
-	// consume the "-"
-	if _, err := s.advance(); err != nil {
-		return nil, err
-	}
-
-	if b, _ := s.advance(); b != '1' {
-		return nil, invalidSyntaxError
-	}
-	if err := s.consumeCR(); err != nil {
-		return nil, err
-	}
-	if err := s.consumeLF(); err != nil {
+	if err := s.nullSuffix(); err != nil {
 		return nil, err
 	}
 
 	return RESP2NullBulkString{}, nil
+}
+
+func (s *RESP2Scanner) nullArray() (Value, error) {
+	if err := s.nullSuffix(); err != nil {
+		return nil, err
+	}
+
+	return RESP2NullArray{}, nil
+}
+
+func (s *RESP2Scanner) nullSuffix() error {
+	// consume the "-"
+	if _, err := s.advance(); err != nil {
+		return err
+	}
+
+	if b, _ := s.advance(); b != '1' {
+		return invalidSyntaxError
+	}
+	if err := s.consumeCR(); err != nil {
+		return err
+	}
+	if err := s.consumeLF(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *RESP2Scanner) simpleString() (Value, error) {

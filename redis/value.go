@@ -57,6 +57,13 @@ func (s RESP2NullBulkString) isValue() {
 	unreachable()
 }
 
+type RESP2NullArray struct{}
+
+// isValue implements Value.
+func (s RESP2NullArray) isValue() {
+	unreachable()
+}
+
 type Array []Value
 
 // isValue implements Value.
