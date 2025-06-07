@@ -6,6 +6,12 @@ type Value interface {
 	isValue()
 }
 
+type ErrorValue interface {
+	Value
+
+	Message() string
+}
+
 type SimpleString string
 
 // isValue implements Value
@@ -23,7 +29,7 @@ func NewSimpleError(message string) SimpleError {
 	}
 }
 
-// isValue implements Value
+// isValue implements Value.
 func (e SimpleError) isValue() {
 	panic("do not call me")
 }

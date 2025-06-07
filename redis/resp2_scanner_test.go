@@ -20,9 +20,11 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		input io.Reader
-		want  redis.Value
+		name           string
+		input          io.Reader
+		want           redis.Value
+		wantErr        error
+		wantGenericErr bool
 	}{
 		{
 			name:  "Uppercase simple string",
@@ -40,85 +42,79 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			want:  redis.SimpleString("Foobar"),
 		},
 		{
-			name:  "Missing CRLF",
-			input: strings.NewReader("PING"),
-			want:  redis.NewSimpleError("ERR missing CRLF"),
+			name:    "Missing CRLF",
+			input:   strings.NewReader("PING"),
+			wantErr: redis.NewSimpleError("SYNTAX missing CRLF"),
 		},
 		{
-			name:  "Missing CR",
-			input: strings.NewReader("PING\n"),
-			want:  redis.NewSimpleError("ERR missing CRLF"),
+			name:    "Missing CR",
+			input:   strings.NewReader("PING\n"),
+			wantErr: redis.NewSimpleError("SYNTAX missing CRLF"),
 		},
 		{
-			name:  "Missing LF",
-			input: strings.NewReader("PING\r"),
-			want:  redis.NewSimpleError("ERR missing CRLF"),
+			name:    "Missing LF",
+			input:   strings.NewReader("PING\r"),
+			wantErr: redis.NewSimpleError("SYNTAX missing CRLF"),
 		},
 		{
-			name:  "No input",
-			input: strings.NewReader(""),
-			want:  redis.NewSimpleError("ERR missing CRLF"),
+			name:    "No input",
+			input:   strings.NewReader(""),
+			wantErr: io.EOF,
 		},
 		{
-			name:  "Error-returning input",
-			input: badReader{},
-			want:  redis.NewSimpleError("ERR internal scanner error"),
+			name:           "Error-returning input",
+			input:          badReader{},
+			wantGenericErr: true,
 		},
 		{
-			name:  `Input that returns error on LF`,
-			input: io.MultiReader(strings.NewReader("PING\r"), badReader{}),
-			want:  redis.NewSimpleError("ERR internal scanner error"),
+			name:           `Input that returns error on LF`,
+			input:          io.MultiReader(strings.NewReader("PING\r"), badReader{}),
+			wantGenericErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := redis.NewRESP2Scanner(tt.input)
-			got := s.Scan()
+			got, err := s.Scan()
 
-			if diff := cmp.Diff(
-				tt.want,
-				got,
-				equateSimpleErrors(),
-			); diff != "" {
+			if tt.wantGenericErr {
+				if err == nil {
+					t.Fatalf("Scan(): got a <nil> error, want a non-nil error")
+				}
+				return
+			}
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("Scan(): got err %q, want %q", err, tt.wantErr)
+				}
+				return
+			}
+
+			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Scan() mismatch (-want +got):\n%s", diff)
+			}
+
+			_, secondScanErr := s.Scan()
+
+			if !errors.Is(secondScanErr, io.EOF) {
+				t.Fatalf(
+					"Scan(): nothing else should have been read: "+
+						"got %q, want io.EOF",
+					err)
 			}
 		})
 	}
 
-	t.Run("Pipelined simple strings", func(t *testing.T) {
+	t.Run("Pipelined inputs", func(t *testing.T) {
 		input := "PING\r\nPING\r\n"
 		want := redis.SimpleString("PING")
 		s := redis.NewRESP2Scanner(strings.NewReader(input))
 		for range 2 {
-			got := s.Scan()
+			got, _ := s.Scan()
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("Scan() mismatch (-want +got):\n%s", diff)
 			}
 		}
 	})
-}
-
-func equateSimpleErrors() cmp.Option {
-	return cmp.FilterValues(areSimpleErrors, cmp.Comparer(compareSimpleErrors))
-}
-
-func areSimpleErrors(a, b any) bool {
-	errA, eaOk := a.(error)
-	errB, ebOk := b.(error)
-	if !eaOk || !ebOk {
-		return false
-	}
-
-	var simpleError redis.SimpleError
-	return errors.As(errA, &simpleError) &&
-		errors.As(errB, &simpleError)
-}
-
-func compareSimpleErrors(a, b any) bool {
-	var simpleErrorA redis.SimpleError
-	var simpleErrorB redis.SimpleError
-	errors.As(a.(error), &simpleErrorA)
-	errors.As(b.(error), &simpleErrorB)
-
-	return simpleErrorA.Message() == simpleErrorB.Message()
 }

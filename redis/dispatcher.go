@@ -1,9 +1,6 @@
 package redis
 
 import (
-	"bufio"
-	"bytes"
-	"encoding"
 	"errors"
 	"io"
 )
@@ -12,23 +9,9 @@ type TCPConn io.ReadWriteCloser
 
 type TCPConnAccepter func() (TCPConn, error)
 
-var (
-	upperPing = []byte("PING\r\n")
-	lowerPing = []byte("ping\r\n")
-	pong      = []byte("+PONG\r\n")
-)
-
-type pingCommand struct{}
-
-func (p pingCommand) MarshalText() ([]byte, error) {
-	return pong, nil
-}
-
-type command encoding.TextMarshaler
-
 type event struct {
-	cmd  command
-	conn TCPConn
+	value Value
+	conn  TCPConn
 }
 
 type Dispatcher struct {
@@ -57,35 +40,37 @@ func (d *Dispatcher) Run() {
 	}()
 
 	for e := range d.events {
-		text, err := e.cmd.MarshalText()
-		if err != nil {
-			// TODO: ERR response
-		}
-		if _, err := e.conn.Write(text); err != nil {
+		text := "+" + e.value.(SimpleString) + "\r\n"
+		if _, err := e.conn.Write([]byte(text)); err != nil {
 			logError(err)
 		}
 	}
 }
 
 func (d *Dispatcher) handleConn(tcpConn TCPConn) {
-	connReader := bufio.NewReader(tcpConn)
+	connScanner := NewRESP2Scanner(tcpConn)
 	for {
-		nextToken, err := connReader.ReadSlice('\n')
+		_, err := connScanner.Scan()
+		if errors.Is(err, io.EOF) {
+			return // All input processed
+		}
+		var errorValue ErrorValue
+		if errors.As(err, &errorValue) {
+			// TODO: test this: pass as an event to d.events to be written back
+			//       to the client via redis.Writer.Write
+		}
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				logError(err)
-			}
+			logError(err)
 			return
 		}
 
-		if !bytes.Equal(nextToken, upperPing) &&
-			!bytes.Equal(nextToken, lowerPing) {
-			continue
-		}
+		// TODO: pass value in _ above to a handler and pass as an event to
+		//       d.events to be written back to the client via
+		//       redis.Writer.Write
 
 		d.events <- event{
-			cmd:  pingCommand{},
-			conn: tcpConn,
+			value: SimpleString("PONG"),
+			conn:  tcpConn,
 		}
 	}
 }
