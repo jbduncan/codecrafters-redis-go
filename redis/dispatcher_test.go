@@ -74,11 +74,15 @@ func TestDispatcher_Run(t *testing.T) {
 		request         string
 		numSubResponses int
 	}{
+		// TODO: remove test as it's not a valid request:
+		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
 			name:            "PING: uppercase simple string request",
 			request:         "PING\r\n",
 			numSubResponses: 1,
 		},
+		// TODO: change to an array request:
+		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
 			name:            "PING: lowercase simple string request",
 			request:         "ping\r\n",
@@ -89,14 +93,11 @@ func TestDispatcher_Run(t *testing.T) {
 			request:         "*1\r\n$4\r\nPING\r\n",
 			numSubResponses: 1,
 		},
+		// TODO: change to a pipeline of array requests:
+		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
 			name:            "three PINGs: three pipelined simple requests",
 			request:         "PING\r\nPING\r\nPING\r\n",
-			numSubResponses: 3,
-		},
-		{
-			name:            "three PINGs: three pipelined requests in array",
-			request:         "*3\r\n$4\r\nPING\r\n$4\r\nPING\r\n$4\r\nPING\r\n",
 			numSubResponses: 3,
 		},
 	}

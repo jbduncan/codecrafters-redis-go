@@ -68,6 +68,10 @@ func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 		//       d.events to be written back to the client via
 		//       redis.Writer.Write
 
+		// TODO: consider adding a handler to support "Inline commands" when
+		//       given something that isn't an array:
+		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#inline-commands
+
 		d.events <- event{
 			value: SimpleString("PONG"),
 			conn:  tcpConn,

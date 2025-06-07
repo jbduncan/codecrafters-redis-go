@@ -12,6 +12,12 @@ var (
 	internalScannerSimpleError = errors.New("internal scanner error")
 )
 
+const (
+	integer    = ':'
+	bulkString = '$'
+	array      = '*'
+)
+
 type RESP2Scanner struct {
 	reader *bufio.Reader
 	buf    []byte
@@ -39,36 +45,41 @@ func NewRESP2Scanner(r io.Reader) *RESP2Scanner {
 //
 // If any other sort of error occurred, then a generic error is returned.
 func (s *RESP2Scanner) Scan() (Value, error) {
-	// TODO: handle:
-	//   - Array
-	//   - Other kinds of values in
-	//     https://redis.io/docs/latest/develop/reference/protocol-spec
-	b, err := s.advanceFirstByte()
+	typ, err := s.advanceFirstByte()
 	if err != nil {
 		// This returns io.EOF if there is no more input to process.
 		return nil, err
 	}
 
+	// TODO: Apparently the real Redis only supports arrays, pipelines of
+	//       arrays and "Inline commands" as inputs. For arrays, this means we
+	//       will need two versions of Scan(): a public one that supports just
+	//       arrays, and a private version that it calls for each element which
+	//       supports all other types and can call itself recursively for
+	//       sub-arrays.
+	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
+	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#multiple-commands-and-pipelining
+	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#inline-commands
 	var value Value
-	switch b {
-	case '$':
+	switch typ {
+	case integer:
+		value, err = s.signedInteger()
+	case bulkString:
 		next, _ := s.peek()
 		if next == '-' {
 			value, err = s.nullBulkString()
 		} else {
 			value, err = s.bulkString()
 		}
-	case '*':
+	case array:
 		next, _ := s.peek()
 		if next == '-' {
 			value, err = s.nullArray()
 		} else {
-			// Array scanning will go here.
+			value, err = s.array()
 		}
-	case ':':
-		value, err = s.signedInteger()
 	default:
-		s.addToToken(b)
+		s.addToToken(typ)
 		value, err = s.simpleString()
 	}
 
@@ -90,11 +101,11 @@ func (s *RESP2Scanner) bulkString() (Value, error) {
 	}
 
 	for range length {
-		b, err := s.advance()
+		char, err := s.advance()
 		if err != nil {
 			return nil, err
 		}
-		s.addToToken(b)
+		s.addToToken(char)
 	}
 
 	if err := s.consumeCR(); err != nil {
@@ -113,6 +124,34 @@ func (s *RESP2Scanner) nullBulkString() (Value, error) {
 	}
 
 	return RESP2NullBulkString{}, nil
+}
+
+func (s *RESP2Scanner) array() (Value, error) {
+	length, err := s.unsignedInt()
+	if err != nil {
+		// TODO: err
+	}
+	// TODO: error if length is greater than size of int64
+
+	if err := s.consumeCR(); err != nil {
+		return nil, err
+	}
+	if err := s.consumeLF(); err != nil {
+		return nil, err
+	}
+
+	result := Array{}
+	for range length {
+		// Recursively scan for the next element.
+		element, err := s.Scan()
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, element)
+	}
+
+	return result, nil
 }
 
 func (s *RESP2Scanner) nullArray() (Value, error) {
@@ -147,13 +186,13 @@ func (s *RESP2Scanner) nullSuffix() error {
 
 func (s *RESP2Scanner) simpleString() (Value, error) {
 	for {
-		b, err := s.advance()
+		char, err := s.advance()
 		if err != nil {
 			return nil, err
 		}
 
-		if !s.isCR(b) {
-			s.addToToken(b)
+		if !s.isCR(char) {
+			s.addToToken(char)
 			continue
 		}
 
@@ -168,16 +207,17 @@ func (s *RESP2Scanner) simpleString() (Value, error) {
 func (s *RESP2Scanner) unsignedInt() (uint64, error) {
 	var result uint64
 	for {
-		b, err := s.peek()
+		digit, err := s.peek()
 		if err != nil {
 			return 0, err
 		}
 
-		if !s.isDigit(b) {
+		if !s.isDigit(digit) {
+			// All digits have been processed; return the result.
 			return result, nil
 		}
 
-		result = (10 * result) + uint64(s.asciiDigitToInt(b))
+		result = (10 * result) + uint64(s.asciiDigitToInt(digit))
 
 		// Consume the digit.
 		if _, err := s.advance(); err != nil {
@@ -208,19 +248,20 @@ func (s *RESP2Scanner) signedInt() (int64, error) {
 	}
 
 	for {
-		b, err := s.peek()
+		digit, err := s.peek()
 		if err != nil {
 			return 0, err
 		}
 
-		if !s.isDigit(b) {
+		if !s.isDigit(digit) {
+			// All digits have been processed; return the result.
 			if negative {
 				result *= -1
 			}
 			return result, nil
 		}
 
-		result = s.appendInt64Digit(result, b)
+		result = s.appendInt64Digit(result, digit)
 
 		// Consume the digit.
 		if _, err := s.advance(); err != nil {
@@ -234,20 +275,20 @@ func (s *RESP2Scanner) signAndFirstDigit() (int64, bool, error) {
 	var negative bool
 	var signSeen bool
 
-	b, err := s.advance()
+	digitOrSign, err := s.advance()
 	if err != nil {
 		return 0, false, err
 	}
 
-	switch b {
+	switch digitOrSign {
 	case '-':
 		negative = true
 		signSeen = true
 	case '+':
 		signSeen = true
 	default:
-		if s.isDigit(b) {
-			result = s.appendInt64Digit(result, b)
+		if s.isDigit(digitOrSign) {
+			result = s.appendInt64Digit(result, digitOrSign)
 		} else {
 			return 0, false, invalidSyntaxError
 		}
@@ -268,27 +309,27 @@ func (s *RESP2Scanner) signAndFirstDigit() (int64, bool, error) {
 	return result, negative, nil
 }
 
-func (s *RESP2Scanner) appendInt64Digit(result int64, b byte) int64 {
-	return (10 * result) + int64(s.asciiDigitToInt(b))
+func (s *RESP2Scanner) appendInt64Digit(result int64, digit byte) int64 {
+	return (10 * result) + int64(s.asciiDigitToInt(digit))
 }
 
 func (s *RESP2Scanner) consumeCR() error {
-	b, err := s.advance()
+	cr, err := s.advance()
 	if err != nil {
 		return err
 	}
-	if !s.isCR(b) {
+	if !s.isCR(cr) {
 		return invalidSyntaxError
 	}
 	return nil
 }
 
 func (s *RESP2Scanner) consumeLF() error {
-	b, err := s.advance()
+	lf, err := s.advance()
 	if err != nil {
 		return err
 	}
-	if !s.isLF(b) {
+	if !s.isLF(lf) {
 		return invalidSyntaxError
 	}
 	return nil

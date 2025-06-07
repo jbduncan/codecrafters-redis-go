@@ -14,11 +14,15 @@ func TestPing(t *testing.T) {
 		request   string
 		responses []string
 	}{
+		// TODO: remove test as it's not a valid request:
+		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
 			name:      "PING: uppercase simple string request",
 			request:   "PING\r\n",
 			responses: []string{"+PONG\r\n"},
 		},
+		// TODO: change to an array request:
+		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
 			name:      "PING: lowercase simple string request",
 			request:   "ping\r\n",
@@ -29,14 +33,11 @@ func TestPing(t *testing.T) {
 			request:   "*1\r\n$4\r\nPING\r\n",
 			responses: []string{"+PONG\r\n"},
 		},
+		// TODO: change to a pipeline of array requests:
+		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
 			name:      "three PINGs: three pipelined simple requests",
 			request:   "PING\r\nPING\r\nPING\r\n",
-			responses: []string{"+PONG\r\n", "+PONG\r\n", "+PONG\r\n"},
-		},
-		{
-			name:      "three PINGs: three pipelined requests in array",
-			request:   "*3\r\n$4\r\nPING\r\n$4\r\nPING\r\n$4\r\nPING\r\n",
 			responses: []string{"+PONG\r\n", "+PONG\r\n", "+PONG\r\n"},
 		},
 	}

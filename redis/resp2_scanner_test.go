@@ -287,6 +287,67 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{
+			name:  "Empty array",
+			input: strings.NewReader("*0\r\n"),
+			want:  redis.Array{},
+		},
+		{
+			name:  "One element array with a simple string",
+			input: strings.NewReader("*1\r\nPING\r\n"),
+			want: redis.Array{
+				redis.SimpleString("PING"),
+			},
+		},
+		{
+			name:  "Two element array with an integer and a bulk string",
+			input: strings.NewReader("*2\r\n:1\r\n$4\r\nPING\r\n"),
+			want: redis.Array{
+				redis.Integer(1),
+				redis.BulkString("PING"),
+			},
+		},
+		{
+			name:  "Ten element array of simple strings",
+			input: strings.NewReader("*10\r\nA\r\nB\r\nC\r\nD\r\nE\r\nF\r\nG\r\nH\r\nI\r\nJ\r\n"),
+			want: redis.Array{
+				redis.SimpleString("A"),
+				redis.SimpleString("B"),
+				redis.SimpleString("C"),
+				redis.SimpleString("D"),
+				redis.SimpleString("E"),
+				redis.SimpleString("F"),
+				redis.SimpleString("G"),
+				redis.SimpleString("H"),
+				redis.SimpleString("I"),
+				redis.SimpleString("J"),
+			},
+		},
+		{
+			name:  "Array with inner empty array",
+			input: strings.NewReader("*1\r\n*0\r\n"),
+			want: redis.Array{
+				redis.Array{},
+			},
+		},
+		{
+			name:  "One element array with a malformed integer",
+			input: strings.NewReader("*1\r\n:not-an-integer\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid array with missing CR",
+			input: strings.NewReader("*0\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid array with missing LF",
+			input: strings.NewReader("*0\r"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
 			name:  "RESP2 null array",
 			input: strings.NewReader("*-1\r\n"),
 			want:  redis.RESP2NullArray{},
