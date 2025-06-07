@@ -65,13 +65,15 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 		} else {
 			// Array scanning will go here.
 		}
+	case ':':
+		value, err = s.signedInteger()
 	default:
 		s.addToToken(b)
 		value, err = s.simpleString()
 	}
+
 	s.resetToken()
 	return value, err
-
 }
 
 func (s *RESP2Scanner) bulkString() (Value, error) {
@@ -122,12 +124,16 @@ func (s *RESP2Scanner) nullArray() (Value, error) {
 }
 
 func (s *RESP2Scanner) nullSuffix() error {
-	// consume the "-"
+	// Consume the "-".
 	if _, err := s.advance(); err != nil {
 		return err
 	}
 
-	if b, _ := s.advance(); b != '1' {
+	b, err := s.advance()
+	if err != nil {
+		return err
+	}
+	if b != '1' {
 		return invalidSyntaxError
 	}
 	if err := s.consumeCR(); err != nil {
@@ -160,21 +166,110 @@ func (s *RESP2Scanner) simpleString() (Value, error) {
 }
 
 func (s *RESP2Scanner) unsignedInt() (uint64, error) {
-	var length uint64
+	var result uint64
 	for {
 		b, err := s.peek()
 		if err != nil {
 			return 0, err
 		}
+
 		if !s.isDigit(b) {
-			return length, nil
+			return result, nil
 		}
 
-		length = (10 * length) + s.asciiDigitToInt(b)
+		result = (10 * result) + uint64(s.asciiDigitToInt(b))
+
+		// Consume the digit.
 		if _, err := s.advance(); err != nil {
 			return 0, err
 		}
 	}
+}
+
+func (s *RESP2Scanner) signedInteger() (Value, error) {
+	value, err := s.signedInt()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.consumeCR(); err != nil {
+		return nil, err
+	}
+	if err := s.consumeLF(); err != nil {
+		return nil, err
+	}
+	return Integer(value), nil
+}
+
+func (s *RESP2Scanner) signedInt() (int64, error) {
+	result, negative, err := s.signAndFirstDigit()
+	if err != nil {
+		return 0, err
+	}
+
+	for {
+		b, err := s.peek()
+		if err != nil {
+			return 0, err
+		}
+
+		if !s.isDigit(b) {
+			if negative {
+				result *= -1
+			}
+			return result, nil
+		}
+
+		result = s.appendInt64Digit(result, b)
+
+		// Consume the digit.
+		if _, err := s.advance(); err != nil {
+			return 0, err
+		}
+	}
+}
+
+func (s *RESP2Scanner) signAndFirstDigit() (int64, bool, error) {
+	var result int64
+	var negative bool
+	var signSeen bool
+
+	b, err := s.advance()
+	if err != nil {
+		return 0, false, err
+	}
+
+	switch b {
+	case '-':
+		negative = true
+		signSeen = true
+	case '+':
+		signSeen = true
+	default:
+		if s.isDigit(b) {
+			result = s.appendInt64Digit(result, b)
+		} else {
+			return 0, false, invalidSyntaxError
+		}
+	}
+
+	if signSeen {
+		b, err := s.advance()
+		if err != nil {
+			return 0, false, err
+		}
+
+		if !s.isDigit(b) {
+			return 0, false, invalidSyntaxError
+		}
+		result = s.appendInt64Digit(result, b)
+	}
+
+	return result, negative, nil
+}
+
+func (s *RESP2Scanner) appendInt64Digit(result int64, b byte) int64 {
+	return (10 * result) + int64(s.asciiDigitToInt(b))
 }
 
 func (s *RESP2Scanner) consumeCR() error {
@@ -255,8 +350,8 @@ func (s *RESP2Scanner) isDigit(b byte) bool {
 	return '0' <= b && b <= '9'
 }
 
-func (s *RESP2Scanner) asciiDigitToInt(b byte) uint64 {
-	return uint64(b - '0')
+func (s *RESP2Scanner) asciiDigitToInt(b byte) byte {
+	return b - '0'
 }
 
 func (s *RESP2Scanner) addToToken(b byte) {

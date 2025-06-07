@@ -65,6 +65,94 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantGenericErr: true,
 		},
 		{
+			name:  "Integer 0",
+			input: strings.NewReader(":0\r\n"),
+			want:  redis.Integer(0),
+		},
+		{
+			name:  "Integer 1",
+			input: strings.NewReader(":1\r\n"),
+			want:  redis.Integer(1),
+		},
+		{
+			name:  "Integer 10",
+			input: strings.NewReader(":10\r\n"),
+			want:  redis.Integer(10),
+		},
+		{
+			name:  "Integer -1",
+			input: strings.NewReader(":-1\r\n"),
+			want:  redis.Integer(-1),
+		},
+		{
+			name:  "Integer +1",
+			input: strings.NewReader(":+1\r\n"),
+			want:  redis.Integer(1),
+		},
+		{
+			name:  "Integer with invalid sign symbol",
+			input: strings.NewReader(":?1\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid integer with no digits",
+			input: strings.NewReader(":\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid integer with plus sign but no digits",
+			input: strings.NewReader(":+\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid integer with minus sign but no digits",
+			input: strings.NewReader(":-\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid integer with two plus signs",
+			input: strings.NewReader(":++1\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid integer with two plus signs",
+			input: strings.NewReader(":--1\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid integer with missing CR",
+			input: strings.NewReader(":1\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid integer with missing LF",
+			input: strings.NewReader(":1\r"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:           "Integer that returns error on second byte",
+			input:          io.MultiReader(strings.NewReader(":"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "Integer that returns error after the sign",
+			input:          io.MultiReader(strings.NewReader(":+"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "Integer that returns error after the first digit",
+			input:          io.MultiReader(strings.NewReader(":1"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
 			name:  "Uppercase bulk string",
 			input: strings.NewReader("$4\r\nPING\r\n"),
 			want:  redis.BulkString("PING"),
@@ -93,6 +181,12 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			name:  "Bulk string with LF",
 			input: strings.NewReader("$1\r\n\n\r\n"),
 			want:  redis.BulkString("\n"),
+		},
+		{
+			name:  "Invalid bulk string with just the starting $",
+			input: strings.NewReader("$"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{
 			name:  "Invalid bulk string without length",
@@ -155,6 +249,21 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{
+			name:           "Bulk string that returns error on first digit",
+			input:          io.MultiReader(strings.NewReader("$"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "Bulk string that returns error on first CR",
+			input:          io.MultiReader(strings.NewReader("$1"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "Bulk string that returns error on first payload byte",
+			input:          io.MultiReader(strings.NewReader("$1\r\n"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
 			name:  "RESP2 null bulk string",
 			input: strings.NewReader("$-1\r\n"),
 			want:  redis.RESP2NullBulkString{},
@@ -210,21 +319,6 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			input:          badReader{},
 			wantGenericErr: true,
 		},
-		{
-			name:           "Bulk string that returns error on first digit",
-			input:          io.MultiReader(strings.NewReader("$"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:           "Bulk string that returns error on first CR",
-			input:          io.MultiReader(strings.NewReader("$1"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:           "Bulk string that returns error on first payload byte",
-			input:          io.MultiReader(strings.NewReader("$1\r\n"), badReader{}),
-			wantGenericErr: true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,6 +330,13 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			if tt.wantGenericErr {
 				if err == nil {
 					t.Fatalf("Scan(): got a <nil> error, want a non-nil error")
+				}
+				if _, ok := err.(redis.Value); ok {
+					t.Fatalf(
+						"Scan(): got err %q, want a generic error that is "+
+							"not a redis.Value",
+						err,
+					)
 				}
 				return
 			}

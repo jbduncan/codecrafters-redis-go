@@ -43,6 +43,13 @@ func (e SimpleError) Message() string {
 	return e.message
 }
 
+type Integer int64
+
+// isValue implements Value.
+func (i Integer) isValue() {
+	unreachable()
+}
+
 type BulkString string
 
 // isValue implements Value.
