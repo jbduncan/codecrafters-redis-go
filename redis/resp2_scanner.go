@@ -68,20 +68,9 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 }
 
 func (s *RESP2Scanner) bulkString() (Value, error) {
-	var length uint64
-	for {
-		b, err := s.peek()
-		if err != nil {
-			return nil, err
-		}
-		if s.isDigit(b) {
-			length = (10 * length) + s.asciiDigitToInt(b)
-			if _, err := s.advance(); err != nil {
-				return nil, err
-			}
-		} else {
-			break
-		}
+	length, err := s.unsignedInt()
+	if err != nil {
+		return nil, err
 	}
 
 	if err := s.consumeCR(); err != nil {
@@ -110,7 +99,7 @@ func (s *RESP2Scanner) bulkString() (Value, error) {
 }
 
 func (s *RESP2Scanner) nullBulkString() (Value, error) {
-	// consume "-"
+	// consume the "-"
 	if _, err := s.advance(); err != nil {
 		return nil, err
 	}
@@ -145,6 +134,24 @@ func (s *RESP2Scanner) simpleString() (Value, error) {
 		}
 
 		return SimpleString(s.token()), nil
+	}
+}
+
+func (s *RESP2Scanner) unsignedInt() (uint64, error) {
+	var length uint64
+	for {
+		b, err := s.peek()
+		if err != nil {
+			return 0, err
+		}
+		if !s.isDigit(b) {
+			return length, nil
+		}
+
+		length = (10 * length) + s.asciiDigitToInt(b)
+		if _, err := s.advance(); err != nil {
+			return 0, err
+		}
 	}
 }
 
