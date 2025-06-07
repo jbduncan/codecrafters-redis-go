@@ -102,6 +102,8 @@ func TestDispatcher_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverConns := make(chan *conn, 2)
 			clientConn, serverConn := netPipe()
 			serverConns <- &conn{
@@ -143,6 +145,8 @@ func TestDispatcher_Run(t *testing.T) {
 	}
 
 	t.Run("two PINGS: two concurrent requests", func(t *testing.T) {
+		t.Parallel()
+
 		serverConns := make(chan *conn, 3)
 		clientConn1, serverConn1 := netPipe()
 		clientConn2, serverConn2 := netPipe()
@@ -205,6 +209,8 @@ func TestDispatcher_Run(t *testing.T) {
 		"edge case: when tcpConnAccepter returns error, then no attempt to "+
 			"read the conn is made",
 		func(t *testing.T) {
+			t.Parallel()
+
 			conn := newFailingOnReadMockTCPConn(errors.New("TCP conn blew up"))
 			dispatcher := redis.NewDispatcher(
 				func() (redis.TCPConn, error) {

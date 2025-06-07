@@ -14,9 +14,9 @@ type ErrorValue interface {
 
 type SimpleString string
 
-// isValue implements Value
+// isValue implements Value.
 func (s SimpleString) isValue() {
-	panic("do not call me")
+	unreachable()
 }
 
 type SimpleError struct {
@@ -31,7 +31,7 @@ func NewSimpleError(message string) SimpleError {
 
 // isValue implements Value.
 func (e SimpleError) isValue() {
-	panic("do not call me")
+	unreachable()
 }
 
 // Error implements error.
@@ -41,4 +41,18 @@ func (e SimpleError) Error() string {
 
 func (e SimpleError) Message() string {
 	return e.message
+}
+
+type BulkString string
+
+// isValue implements Value.
+func (s BulkString) isValue() {
+	unreachable()
+}
+
+type Array []Value
+
+// isValue implements Value.
+func (a Array) isValue() {
+	unreachable()
 }

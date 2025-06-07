@@ -28,6 +28,8 @@ func TestSimpleError_Message(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.err.Message()
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("error mismatch (-want +got):\n%s", diff)

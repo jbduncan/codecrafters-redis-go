@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	syntaxMissingCRLFError     = NewSimpleError("SYNTAX missing CRLF")
+	invalidSyntaxError         = NewSimpleError("SYNTAX invalid syntax")
 	internalScannerSimpleError = errors.New("internal scanner error")
 )
 
@@ -39,17 +39,77 @@ func NewRESP2Scanner(r io.Reader) *RESP2Scanner {
 //
 // If any other sort of error occurred, then a generic error is returned.
 func (s *RESP2Scanner) Scan() (Value, error) {
-	value, err := s.simpleString()
+	// TODO: handle:
+	//   - Array
+	//   - Other kinds of values in
+	//     https://redis.io/docs/latest/develop/reference/protocol-spec
+	b, err := s.advanceFirstByte()
+	if err != nil {
+		// This returns io.EOF if there is no more input to process.
+		return nil, err
+	}
+
+	var value Value
+	switch b {
+	case '$':
+		value, err = s.bulkString()
+	default:
+		s.addToToken(b)
+		value, err = s.simpleString()
+	}
 	s.resetToken()
 	return value, err
+
+}
+
+func (s *RESP2Scanner) bulkString() (Value, error) {
+	var length int
+	for {
+		b, err := s.peek()
+		if errors.Is(err, io.EOF) {
+			return nil, invalidSyntaxError
+		}
+		if err != nil {
+			return nil, err
+		}
+		if s.isDigit(b) {
+			length = (10 * length) + s.asciiDigitToInt(b)
+			if _, err := s.advance(); err != nil {
+				return nil, err
+			}
+		} else {
+			break
+		}
+	}
+
+	if err := s.consumeCR(); err != nil {
+		return nil, err
+	}
+	if err := s.consumeLF(); err != nil {
+		return nil, err
+	}
+
+	for range length {
+		b, err := s.advance()
+		if err != nil {
+			return nil, err
+		}
+		s.addToToken(b)
+	}
+
+	if err := s.consumeCR(); err != nil {
+		return nil, err
+	}
+	if err := s.consumeLF(); err != nil {
+		return nil, err
+	}
+
+	return BulkString(s.token()), nil
 }
 
 func (s *RESP2Scanner) simpleString() (Value, error) {
 	for {
 		b, err := s.advance()
-		if errors.Is(err, io.EOF) && s.midReadingToken() {
-			return nil, syntaxMissingCRLFError
-		}
 		if err != nil {
 			return nil, err
 		}
@@ -67,30 +127,66 @@ func (s *RESP2Scanner) simpleString() (Value, error) {
 	}
 }
 
-func (s *RESP2Scanner) consumeLF() error {
+func (s *RESP2Scanner) consumeCR() error {
 	b, err := s.advance()
-	if errors.Is(err, io.EOF) {
-		return syntaxMissingCRLFError
-	}
 	if err != nil {
-		return fmt.Errorf("%v: %v", internalScannerSimpleError, err)
+		return err
 	}
-	if !s.isLF(b) {
-		return syntaxMissingCRLFError
+	if !s.isCR(b) {
+		return invalidSyntaxError
 	}
 	return nil
+}
+
+func (s *RESP2Scanner) consumeLF() error {
+	b, err := s.advance()
+	if err != nil {
+		return err
+	}
+	if !s.isLF(b) {
+		return invalidSyntaxError
+	}
+	return nil
+}
+
+func (s *RESP2Scanner) advanceFirstByte() (byte, error) {
+	b, err := s.reader.ReadByte()
+	if errors.Is(err, io.EOF) {
+		return 0, io.EOF
+	}
+	if err != nil {
+		return 0, s.wrapAsInternalScannerSimpleError(err)
+	}
+
+	return b, nil
 }
 
 func (s *RESP2Scanner) advance() (byte, error) {
 	b, err := s.reader.ReadByte()
 	if errors.Is(err, io.EOF) {
-		return 0, err
+		return 0, invalidSyntaxError
 	}
 	if err != nil {
-		return 0, fmt.Errorf("%v: %v", internalScannerSimpleError, err)
+		return 0, s.wrapAsInternalScannerSimpleError(err)
 	}
 
 	return b, nil
+}
+
+func (s *RESP2Scanner) peek() (byte, error) {
+	bs, err := s.reader.Peek(1)
+	if errors.Is(err, io.EOF) {
+		return 0, invalidSyntaxError
+	}
+	if err != nil {
+		return 0, s.wrapAsInternalScannerSimpleError(err)
+	}
+
+	return bs[0], nil
+}
+
+func (s *RESP2Scanner) wrapAsInternalScannerSimpleError(cause error) error {
+	return fmt.Errorf("%v: %v", internalScannerSimpleError, cause)
 }
 
 func (s *RESP2Scanner) isCR(b byte) bool {
@@ -105,12 +201,16 @@ func (s *RESP2Scanner) isCRLF(b byte) bool {
 	return s.isCR(b) || s.isLF(b)
 }
 
-func (s *RESP2Scanner) addToToken(b byte) {
-	s.buf = append(s.buf, b)
+func (s *RESP2Scanner) isDigit(b byte) bool {
+	return '0' <= b && b <= '9'
 }
 
-func (s *RESP2Scanner) midReadingToken() bool {
-	return len(s.buf) != 0
+func (s *RESP2Scanner) asciiDigitToInt(b byte) int {
+	return int(b - '0')
+}
+
+func (s *RESP2Scanner) addToToken(b byte) {
+	s.buf = append(s.buf, b)
 }
 
 func (s *RESP2Scanner) token() []byte {

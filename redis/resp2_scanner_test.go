@@ -42,19 +42,117 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			want:  redis.SimpleString("Foobar"),
 		},
 		{
-			name:    "Missing CRLF",
-			input:   strings.NewReader("PING"),
-			wantErr: redis.NewSimpleError("SYNTAX missing CRLF"),
+			name:  "Missing CRLF for simple string",
+			input: strings.NewReader("PING"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{
-			name:    "Missing CR",
-			input:   strings.NewReader("PING\n"),
-			wantErr: redis.NewSimpleError("SYNTAX missing CRLF"),
+			name:  "Missing CR for simple string",
+			input: strings.NewReader("PING\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{
-			name:    "Missing LF",
-			input:   strings.NewReader("PING\r"),
-			wantErr: redis.NewSimpleError("SYNTAX missing CRLF"),
+			name:  "Missing LF for simple string",
+			input: strings.NewReader("PING\r"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:           "Simple string that returns error on LF",
+			input:          io.MultiReader(strings.NewReader("PING\r"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:  "Uppercase bulk string",
+			input: strings.NewReader("$4\r\nPING\r\n"),
+			want:  redis.BulkString("PING"),
+		},
+		{
+			name:  "Lowercase bulk string",
+			input: strings.NewReader("$4\r\nping\r\n"),
+			want:  redis.BulkString("ping"),
+		},
+		{
+			name:  "Other bulk string",
+			input: strings.NewReader("$6\r\nFoobar\r\n"),
+			want:  redis.BulkString("Foobar"),
+		},
+		{
+			name:  "Longer bulk string",
+			input: strings.NewReader("$10\r\nenumerable\r\n"),
+			want:  redis.BulkString("enumerable"),
+		},
+		{
+			name:  "Bulk string with CR",
+			input: strings.NewReader("$1\r\n\r\r\n"),
+			want:  redis.BulkString("\r"),
+		},
+		{
+			name:  "Bulk string with LF",
+			input: strings.NewReader("$1\r\n\n\r\n"),
+			want:  redis.BulkString("\n"),
+		},
+		{
+			name:  "Invalid bulk string without length",
+			input: strings.NewReader("$foo\r\nbar\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with missing first CR",
+			input: strings.NewReader("$3\nfoo\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with missing first LF",
+			input: strings.NewReader("$3\rfoo\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with missing second CR",
+			input: strings.NewReader("$3\r\nfoo\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with missing second LF",
+			input: strings.NewReader("$3\r\nfoo\r"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with shorter payload than length suggests",
+			input: strings.NewReader("$2\r\na\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with less bytes in total than length suggests",
+			input: strings.NewReader("$6\r\na\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with just a length",
+			input: strings.NewReader("$1"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with just length",
+			input: strings.NewReader("$1"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid bulk string with just length and first CRLF",
+			input: strings.NewReader("$1\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{
 			name:    "No input",
@@ -67,13 +165,25 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantGenericErr: true,
 		},
 		{
-			name:           `Input that returns error on LF`,
-			input:          io.MultiReader(strings.NewReader("PING\r"), badReader{}),
+			name:           "Bulk string that returns error on first digit",
+			input:          io.MultiReader(strings.NewReader("$"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "Bulk string that returns error on first CR",
+			input:          io.MultiReader(strings.NewReader("$1"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "Bulk string that returns error on first payload byte",
+			input:          io.MultiReader(strings.NewReader("$1\r\n"), badReader{}),
 			wantGenericErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := redis.NewRESP2Scanner(tt.input)
 			got, err := s.Scan()
 
@@ -95,18 +205,20 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 				t.Errorf("Scan() mismatch (-want +got):\n%s", diff)
 			}
 
-			_, secondScanErr := s.Scan()
+			secondGot, secondScanErr := s.Scan()
 
 			if !errors.Is(secondScanErr, io.EOF) {
 				t.Fatalf(
 					"Scan(): nothing else should have been read: "+
-						"got %q, want io.EOF",
-					err)
+						"got %q, err %q; want io.EOF",
+					secondGot, secondScanErr)
 			}
 		})
 	}
 
 	t.Run("Pipelined inputs", func(t *testing.T) {
+		t.Parallel()
+
 		input := "PING\r\nPING\r\n"
 		want := redis.SimpleString("PING")
 		s := redis.NewRESP2Scanner(strings.NewReader(input))
