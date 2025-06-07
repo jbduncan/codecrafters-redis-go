@@ -52,7 +52,12 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 	var value Value
 	switch b {
 	case '$':
-		value, err = s.bulkString()
+		next, _ := s.peek()
+		if next == '-' {
+			value, err = s.nullBulkString()
+		} else {
+			value, err = s.bulkString()
+		}
 	default:
 		s.addToToken(b)
 		value, err = s.simpleString()
@@ -63,12 +68,9 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 }
 
 func (s *RESP2Scanner) bulkString() (Value, error) {
-	var length int
+	var length uint64
 	for {
 		b, err := s.peek()
-		if errors.Is(err, io.EOF) {
-			return nil, invalidSyntaxError
-		}
 		if err != nil {
 			return nil, err
 		}
@@ -105,6 +107,25 @@ func (s *RESP2Scanner) bulkString() (Value, error) {
 	}
 
 	return BulkString(s.token()), nil
+}
+
+func (s *RESP2Scanner) nullBulkString() (Value, error) {
+	// consume "-"
+	if _, err := s.advance(); err != nil {
+		return nil, err
+	}
+
+	if b, _ := s.advance(); b != '1' {
+		return nil, invalidSyntaxError
+	}
+	if err := s.consumeCR(); err != nil {
+		return nil, err
+	}
+	if err := s.consumeLF(); err != nil {
+		return nil, err
+	}
+
+	return RESP2NullBulkString{}, nil
 }
 
 func (s *RESP2Scanner) simpleString() (Value, error) {
@@ -205,8 +226,8 @@ func (s *RESP2Scanner) isDigit(b byte) bool {
 	return '0' <= b && b <= '9'
 }
 
-func (s *RESP2Scanner) asciiDigitToInt(b byte) int {
-	return int(b - '0')
+func (s *RESP2Scanner) asciiDigitToInt(b byte) uint64 {
+	return uint64(b - '0')
 }
 
 func (s *RESP2Scanner) addToToken(b byte) {

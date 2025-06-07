@@ -155,6 +155,29 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{
+			name:  "Null RESP2 bulk string",
+			input: strings.NewReader("$-1\r\n"),
+			want:  redis.RESP2NullBulkString{},
+		},
+		{
+			name:  "Invalid null RESP2 bulk string with incorrect length",
+			input: strings.NewReader("$-2\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid null RESP2 bulk string with missing CR",
+			input: strings.NewReader("$-1\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
+			name:  "Invalid null RESP2 bulk string with missing LF",
+			input: strings.NewReader("$-1\r"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+		},
+		{
 			name:    "No input",
 			input:   strings.NewReader(""),
 			wantErr: io.EOF,
