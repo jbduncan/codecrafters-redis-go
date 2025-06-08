@@ -45,6 +45,9 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			name:  "Missing CRLF for simple string",
 			input: strings.NewReader("PING"),
 			// TODO: return as a redis.BulkError
+			// TODO: the real Redis returns a message like the following.
+			//       Follow its lead:
+			//       -ERR Protocol error: expected '$', got 'P'
 			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
 		},
 		{

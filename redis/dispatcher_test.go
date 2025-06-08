@@ -69,6 +69,16 @@ func netPipe() (net.Conn, net.Conn) {
 func TestDispatcher_Run(t *testing.T) {
 	t.Parallel()
 
+	// TODO: introduce Router to determine which of various Handlers to call for a
+	//  given redis.Value. These Handlers would include PingHandler and
+	//  EchoHandler. The Handlers would return redis.Value instances back
+	//  to the Router, which would itself return those values back.
+	//
+	// TODO: introduce a RESPEncoder that can turn redis.Values into RESP responses
+	//  and write them back to the TCP connection.
+	//
+	// TODO: wire these together in Dispatcher.
+
 	tests := []struct {
 		name            string
 		request         string
