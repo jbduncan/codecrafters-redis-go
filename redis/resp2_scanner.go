@@ -51,15 +51,20 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 		return nil, err
 	}
 
-	// TODO: Apparently the real Redis only supports arrays, pipelines of
-	//       arrays and "Inline commands" as inputs. For arrays, this means we
-	//       will need two versions of Scan(): a public one that supports just
-	//       arrays, and a private version that it calls for each element which
-	//       supports all other types and can call itself recursively for
-	//       sub-arrays.
+	// TODO: Apparently, from testing and reading the docs, the real Redis only
+	//       supports single simple strings, arrays, pipelines of single simple
+	//       strings and/or arrays and "Inline commands" as inputs.
+	//       Furthermore, it needs array elements to have a type byte, so
+	//       every type except simple strings are supported as elements.
+	//       Therefore, we need two versions of Scan(): a public one that only
+	//       supports simple strings and arrays, and a private one for array
+	//       elements which supports all other types and can call itself
+	//       recursively on sub-arrays.
 	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#multiple-commands-and-pipelining
 	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#inline-commands
+	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#arrays
+
 	var value Value
 	switch typ {
 	case integer:
