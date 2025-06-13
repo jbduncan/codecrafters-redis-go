@@ -12,8 +12,8 @@ var (
 )
 
 const (
-	bulkString = '$'
-	array      = '*'
+	bulkStringType = '$'
+	arrayType      = '*'
 )
 
 type RESP2Scanner struct {
@@ -51,7 +51,7 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 
 	var value Value
 	switch typ {
-	case array:
+	case arrayType:
 		value, err = s.array()
 	default:
 		s.addToToken(typ)
@@ -73,7 +73,7 @@ func (s *RESP2Scanner) arrayElement() (Value, error) {
 
 	var value Value
 	switch typ {
-	case bulkString:
+	case bulkStringType:
 		value, err = s.bulkString()
 	default:
 		return nil, s.expectedGotError("'$'", typ)
