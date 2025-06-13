@@ -7,6 +7,7 @@ type Value interface {
 }
 
 type ErrorValue interface {
+	error
 	Value
 
 	Message() string
@@ -39,6 +40,7 @@ func (e SimpleError) Error() string {
 	return e.message
 }
 
+// Message implements ErrorValue.
 func (e SimpleError) Message() string {
 	return e.message
 }
@@ -76,4 +78,29 @@ type Array []Value
 // isValue implements Value.
 func (a Array) isValue() {
 	unreachable()
+}
+
+type BulkError struct {
+	message string
+}
+
+func NewBulkError(message string) BulkError {
+	return BulkError{
+		message: message,
+	}
+}
+
+// isValue implements Value.
+func (e BulkError) isValue() {
+	unreachable()
+}
+
+// Error implements error.
+func (e BulkError) Error() string {
+	return e.message
+}
+
+// Message implements ErrorValue.
+func (e BulkError) Message() string {
+	return e.message
 }

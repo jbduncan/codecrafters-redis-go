@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	incompleteRequestError = NewSimpleError("-ERR Protocol error: incomplete request")
+	incompleteRequestError = NewBulkError("-ERR Protocol error: incomplete request")
 )
 
 const (
@@ -182,13 +182,13 @@ func (s *RESP2Scanner) remainingUnsignedDigits(sum int32) (int32, error) {
 		var overflow bool
 		sum, overflow = s.checkedMultiply(10, sum)
 		if overflow {
-			return 0, NewSimpleError(
+			return 0, NewBulkError(
 				"-ERR Protocol error: invalid multibulk length",
 			)
 		}
 		sum, overflow = s.checkedAdd(sum, s.asciiDigitToInt32(digit))
 		if overflow {
-			return 0, NewSimpleError(
+			return 0, NewBulkError(
 				"-ERR Protocol error: invalid multibulk length",
 			)
 		}
@@ -313,7 +313,7 @@ func (s *RESP2Scanner) wrapAsInternalScannerSimpleError(cause error) error {
 }
 
 func (s *RESP2Scanner) expectedGotError(expected string, got byte) error {
-	return NewSimpleError(
+	return NewBulkError(
 		fmt.Sprintf(
 			`-ERR Protocol error: expected %s, got '%s'`,
 			expected,
