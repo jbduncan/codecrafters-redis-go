@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -79,36 +80,31 @@ func TestDispatcher_Run(t *testing.T) {
 	//
 	// TODO: wire these together in Dispatcher.
 
+	const (
+		lowercasePing = "*1\r\n$4\r\nping\r\n"
+		uppercasePing = "*1\r\n$4\r\nPING\r\n"
+		pong          = "+PONG\r\n"
+	)
+
 	tests := []struct {
-		name            string
-		request         string
-		numSubResponses int
+		name     string
+		request  string
+		response string
 	}{
-		// TODO: remove test as it's not a valid request:
-		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
-			name:            "PING: uppercase simple string request",
-			request:         "PING\r\n",
-			numSubResponses: 1,
-		},
-		// TODO: change to an array request:
-		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
-		{
-			name:            "PING: lowercase simple string request",
-			request:         "ping\r\n",
-			numSubResponses: 1,
+			name:     "PING: lowercase request",
+			request:  lowercasePing,
+			response: pong,
 		},
 		{
-			name:            "PING: array request",
-			request:         "*1\r\n$4\r\nPING\r\n",
-			numSubResponses: 1,
+			name:     "PING: uppercase request",
+			request:  uppercasePing,
+			response: pong,
 		},
-		// TODO: change to a pipeline of array requests:
-		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
-			name:            "three PINGs: three pipelined simple requests",
-			request:         "PING\r\nPING\r\nPING\r\n",
-			numSubResponses: 3,
+			name:     "three PINGs: three pipelined requests",
+			request:  strings.Repeat(uppercasePing, 3),
+			response: strings.Repeat(pong, 3),
 		},
 	}
 	for _, tt := range tests {
@@ -138,19 +134,18 @@ func TestDispatcher_Run(t *testing.T) {
 				t.Fatalf("request not sent through clientConn: %v", err)
 			}
 
-			for range tt.numSubResponses {
-				resp, err := bufio.NewReader(clientConn).ReadString('\n')
-				if err != nil {
-					t.Fatalf("resp not read: %v", err)
-				}
+			resp := make([]byte, len(tt.response))
+			_, err := io.ReadFull(clientConn, resp)
+			if err != nil {
+				t.Fatalf("resp not read: %v", err)
+			}
 
-				if got, want := resp, "+PONG\r\n"; got != want {
-					t.Errorf(
-						`Dispatcher.Run(): PING request: got response %q, want %q`,
-						got,
-						want,
-					)
-				}
+			if got, want := string(resp), tt.response; got != want {
+				t.Errorf(
+					`Dispatcher.Run(): PING request: got response %q, want %q`,
+					got,
+					want,
+				)
 			}
 		})
 	}
@@ -206,7 +201,7 @@ func TestDispatcher_Run(t *testing.T) {
 			if r.err != nil {
 				t.Fatalf("resp not read: %v", r.err)
 			}
-			if got, want := r.s, "+PONG\r\n"; got != want {
+			if got, want := r.s, pong; got != want {
 				t.Errorf(
 					`Dispatcher.Run(): PING request: got response %q, want %q`,
 					got,
