@@ -1,6 +1,12 @@
 package redis
 
-func PingHandlerFunc(args Array) Value {
+type PingHandler struct{}
+
+func (h PingHandler) Command() string {
+	return "PING"
+}
+
+func (h PingHandler) Handle(args Array) Value {
 	switch len(args) {
 	case 0:
 		return SimpleString("PONG")

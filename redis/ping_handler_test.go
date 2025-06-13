@@ -8,6 +8,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+// TODO: consider extracting out an interface test suite for future handlers
+
+func TestPingHandler_Command(t *testing.T) {
+	if got, want := (redis.PingHandler{}).Command(), "PING"; got != want {
+		t.Errorf("Command() = %v, want %v", got, want)
+	}
+}
+
 func TestPingHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -54,27 +62,27 @@ func TestPingHandler_Handle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := redis.PingHandlerFunc(tt.args)
+			got := redis.PingHandler{}.Handle(tt.args)
 
 			if tt.wantErr != nil {
 				gotErr, ok := got.(error)
 				if !ok {
-					t.Fatalf("PingHandlerFunc(): got %v, want err %q", got, tt.wantErr)
+					t.Fatalf("Handle(): got %v, want err %q", got, tt.wantErr)
 				}
 
 				var gotErrValue redis.ErrorValue
 				if !errors.As(gotErr, &gotErrValue) {
-					t.Fatalf("PingHandlerFunc(): got err %q, want err %q", gotErr, tt.wantErr)
+					t.Fatalf("Handle(): got err %q, want err %q", gotErr, tt.wantErr)
 				}
 
 				if got, want := gotErrValue.Message(), tt.wantErr.Message(); got != want {
-					t.Fatalf("PingHandlerFunc(): got err %q, want err %q", gotErr, tt.wantErr)
+					t.Fatalf("Handle(): got err %q, want err %q", gotErr, tt.wantErr)
 				}
 				return
 			}
 
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("PingHandlerFunc() mismatch (-want +got):\n%s", diff)
+				t.Errorf("Handle() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
