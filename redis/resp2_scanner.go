@@ -8,12 +8,13 @@ import (
 )
 
 var (
-	invalidSyntaxError         = NewSimpleError("SYNTAX invalid syntax")
+	incompleteRequestError = NewSimpleError("-ERR Protocol error: incomplete request")
+
+	// TODO: remove
 	internalScannerSimpleError = errors.New("internal scanner error")
 )
 
 const (
-	integer    = ':'
 	bulkString = '$'
 	array      = '*'
 )
@@ -51,38 +52,10 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 		return nil, err
 	}
 
-	// TODO: Apparently, from testing and reading the docs, the real Redis only
-	//       supports single simple strings, arrays, pipelines of single simple
-	//       strings and/or arrays and "Inline commands" as inputs.
-	//       Furthermore, it needs array elements to have a type byte, so
-	//       every type except simple strings are supported as elements.
-	//       Therefore, we need two versions of Scan(): a public one that only
-	//       supports simple strings and arrays, and a private one for array
-	//       elements which supports all other types and can call itself
-	//       recursively on sub-arrays.
-	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
-	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#multiple-commands-and-pipelining
-	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#inline-commands
-	//       - https://redis.io/docs/latest/develop/reference/protocol-spec/#arrays
-
 	var value Value
 	switch typ {
-	case integer:
-		value, err = s.signedInteger()
-	case bulkString:
-		next, _ := s.peek()
-		if next == '-' {
-			value, err = s.nullBulkString()
-		} else {
-			value, err = s.bulkString()
-		}
 	case array:
-		next, _ := s.peek()
-		if next == '-' {
-			value, err = s.nullArray()
-		} else {
-			value, err = s.array()
-		}
+		value, err = s.array()
 	default:
 		s.addToToken(typ)
 		value, err = s.simpleString()
@@ -92,16 +65,35 @@ func (s *RESP2Scanner) Scan() (Value, error) {
 	return value, err
 }
 
-func (s *RESP2Scanner) bulkString() (Value, error) {
-	length, err := s.unsignedInt()
+func (s *RESP2Scanner) arrayElement() (Value, error) {
+	typ, err := s.advanceFirstByte()
+	if errors.Is(err, io.EOF) {
+		return nil, incompleteRequestError
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.consumeCR(); err != nil {
-		return nil, err
+	var value Value
+	switch typ {
+	case bulkString:
+		value, err = s.bulkString()
+	default:
+		return nil, NewSimpleError(
+			fmt.Sprintf(
+				"-ERR Protocol error: expected '$', got '%s'",
+				s.escape(typ),
+			),
+		)
 	}
-	if err := s.consumeLF(); err != nil {
+
+	s.resetToken()
+	return value, err
+}
+
+func (s *RESP2Scanner) bulkString() (Value, error) {
+	length, err := s.unsignedInt()
+	if err != nil {
 		return nil, err
 	}
 
@@ -123,32 +115,16 @@ func (s *RESP2Scanner) bulkString() (Value, error) {
 	return BulkString(s.token()), nil
 }
 
-func (s *RESP2Scanner) nullBulkString() (Value, error) {
-	if err := s.nullSuffix(); err != nil {
-		return nil, err
-	}
-
-	return RESP2NullBulkString{}, nil
-}
-
 func (s *RESP2Scanner) array() (Value, error) {
 	length, err := s.unsignedInt()
 	if err != nil {
-		// TODO: err
+		return nil, err
 	}
 	// TODO: error if length is greater than size of int64
 
-	if err := s.consumeCR(); err != nil {
-		return nil, err
-	}
-	if err := s.consumeLF(); err != nil {
-		return nil, err
-	}
-
 	result := Array{}
 	for range length {
-		// Recursively scan for the next element.
-		element, err := s.Scan()
+		element, err := s.arrayElement()
 		if err != nil {
 			return nil, err
 		}
@@ -157,36 +133,6 @@ func (s *RESP2Scanner) array() (Value, error) {
 	}
 
 	return result, nil
-}
-
-func (s *RESP2Scanner) nullArray() (Value, error) {
-	if err := s.nullSuffix(); err != nil {
-		return nil, err
-	}
-
-	return RESP2NullArray{}, nil
-}
-
-func (s *RESP2Scanner) nullSuffix() error {
-	// Consume the "-".
-	if _, err := s.advance(); err != nil {
-		return err
-	}
-
-	b, err := s.advance()
-	if err != nil {
-		return err
-	}
-	if b != '1' {
-		return invalidSyntaxError
-	}
-	if err := s.consumeCR(); err != nil {
-		return err
-	}
-	if err := s.consumeLF(); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (s *RESP2Scanner) simpleString() (Value, error) {
@@ -210,45 +156,25 @@ func (s *RESP2Scanner) simpleString() (Value, error) {
 }
 
 func (s *RESP2Scanner) unsignedInt() (uint64, error) {
-	var result uint64
-	for {
-		digit, err := s.peek()
-		if err != nil {
-			return 0, err
-		}
-
-		if !s.isDigit(digit) {
-			// All digits have been processed; return the result.
-			return result, nil
-		}
-
-		result = (10 * result) + uint64(s.asciiDigitToInt(digit))
-
-		// Consume the digit.
-		if _, err := s.advance(); err != nil {
-			return 0, err
-		}
-	}
-}
-
-func (s *RESP2Scanner) signedInteger() (Value, error) {
-	value, err := s.signedInt()
+	// Process first digit.
+	digit, err := s.peek()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	if err := s.consumeCR(); err != nil {
-		return nil, err
+	if !s.isDigit(digit) {
+		return 0, NewSimpleError(
+			fmt.Sprintf(
+				"-ERR Protocol error: expected digit, got '%s'",
+				s.escape(digit),
+			),
+		)
 	}
-	if err := s.consumeLF(); err != nil {
-		return nil, err
-	}
-	return Integer(value), nil
-}
 
-func (s *RESP2Scanner) signedInt() (int64, error) {
-	result, negative, err := s.signAndFirstDigit()
-	if err != nil {
+	result := uint64(s.asciiDigitToInt(digit))
+
+	// Consume the digit.
+	if _, err := s.advance(); err != nil {
 		return 0, err
 	}
 
@@ -259,63 +185,26 @@ func (s *RESP2Scanner) signedInt() (int64, error) {
 		}
 
 		if !s.isDigit(digit) {
-			// All digits have been processed; return the result.
-			if negative {
-				result *= -1
-			}
-			return result, nil
+			// All digits have been processed.
+			break
 		}
 
-		result = s.appendInt64Digit(result, digit)
+		result = (10 * result) + uint64(s.asciiDigitToInt(digit))
 
 		// Consume the digit.
 		if _, err := s.advance(); err != nil {
 			return 0, err
 		}
 	}
-}
 
-func (s *RESP2Scanner) signAndFirstDigit() (int64, bool, error) {
-	var result int64
-	var negative bool
-	var signSeen bool
-
-	digitOrSign, err := s.advance()
-	if err != nil {
-		return 0, false, err
+	if err := s.consumeCR(); err != nil {
+		return 0, err
+	}
+	if err := s.consumeLF(); err != nil {
+		return 0, err
 	}
 
-	switch digitOrSign {
-	case '-':
-		negative = true
-		signSeen = true
-	case '+':
-		signSeen = true
-	default:
-		if s.isDigit(digitOrSign) {
-			result = s.appendInt64Digit(result, digitOrSign)
-		} else {
-			return 0, false, invalidSyntaxError
-		}
-	}
-
-	if signSeen {
-		b, err := s.advance()
-		if err != nil {
-			return 0, false, err
-		}
-
-		if !s.isDigit(b) {
-			return 0, false, invalidSyntaxError
-		}
-		result = s.appendInt64Digit(result, b)
-	}
-
-	return result, negative, nil
-}
-
-func (s *RESP2Scanner) appendInt64Digit(result int64, digit byte) int64 {
-	return (10 * result) + int64(s.asciiDigitToInt(digit))
+	return result, nil
 }
 
 func (s *RESP2Scanner) consumeCR() error {
@@ -324,7 +213,12 @@ func (s *RESP2Scanner) consumeCR() error {
 		return err
 	}
 	if !s.isCR(cr) {
-		return invalidSyntaxError
+		return NewSimpleError(
+			fmt.Sprintf(
+				`-ERR Protocol error: expected '\r', got '%s'`,
+				s.escape(cr),
+			),
+		)
 	}
 	return nil
 }
@@ -335,9 +229,26 @@ func (s *RESP2Scanner) consumeLF() error {
 		return err
 	}
 	if !s.isLF(lf) {
-		return invalidSyntaxError
+		return NewSimpleError(
+			fmt.Sprintf(
+				`-ERR Protocol error: expected '\n', got '%s'`,
+				s.escape(lf),
+			),
+		)
 	}
 	return nil
+}
+
+func (s *RESP2Scanner) escape(b byte) string {
+	var escaped string
+	if b == '\r' {
+		escaped = `\r`
+	} else if b == '\n' {
+		escaped = `\n`
+	} else {
+		escaped = string(b)
+	}
+	return escaped
 }
 
 func (s *RESP2Scanner) advanceFirstByte() (byte, error) {
@@ -355,7 +266,7 @@ func (s *RESP2Scanner) advanceFirstByte() (byte, error) {
 func (s *RESP2Scanner) advance() (byte, error) {
 	b, err := s.reader.ReadByte()
 	if errors.Is(err, io.EOF) {
-		return 0, invalidSyntaxError
+		return 0, incompleteRequestError
 	}
 	if err != nil {
 		return 0, s.wrapAsInternalScannerSimpleError(err)
@@ -367,7 +278,7 @@ func (s *RESP2Scanner) advance() (byte, error) {
 func (s *RESP2Scanner) peek() (byte, error) {
 	bs, err := s.reader.Peek(1)
 	if errors.Is(err, io.EOF) {
-		return 0, invalidSyntaxError
+		return 0, incompleteRequestError
 	}
 	if err != nil {
 		return 0, s.wrapAsInternalScannerSimpleError(err)
@@ -376,6 +287,7 @@ func (s *RESP2Scanner) peek() (byte, error) {
 	return bs[0], nil
 }
 
+// TODO: remove
 func (s *RESP2Scanner) wrapAsInternalScannerSimpleError(cause error) error {
 	return fmt.Errorf("%v: %v", internalScannerSimpleError, cause)
 }

@@ -45,22 +45,19 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			name:  "Missing CRLF for simple string",
 			input: strings.NewReader("PING"),
 			// TODO: return as a redis.BulkError
-			// TODO: the real Redis returns a message like the following.
-			//       Follow its lead:
-			//       -ERR Protocol error: expected '$', got 'P'
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: incomplete request`),
 		},
 		{
 			name:  "Missing CR for simple string",
 			input: strings.NewReader("PING\n"),
 			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: incomplete request`),
 		},
 		{
 			name:  "Missing LF for simple string",
 			input: strings.NewReader("PING\r"),
 			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: incomplete request`),
 		},
 		{
 			name:           "Simple string that returns error on LF",
@@ -68,310 +65,230 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantGenericErr: true,
 		},
 		{
-			name:  "Integer 0",
-			input: strings.NewReader(":0\r\n"),
-			want:  redis.Integer(0),
-		},
-		{
-			name:  "Integer 1",
-			input: strings.NewReader(":1\r\n"),
-			want:  redis.Integer(1),
-		},
-		{
-			name:  "Integer 10",
-			input: strings.NewReader(":10\r\n"),
-			want:  redis.Integer(10),
-		},
-		{
-			name:  "Integer -1",
-			input: strings.NewReader(":-1\r\n"),
-			want:  redis.Integer(-1),
-		},
-		{
-			name:  "Integer +1",
-			input: strings.NewReader(":+1\r\n"),
-			want:  redis.Integer(1),
-		},
-		{
-			name:  "Integer with invalid sign symbol",
-			input: strings.NewReader(":?1\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid integer with no digits",
-			input: strings.NewReader(":\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid integer with plus sign but no digits",
-			input: strings.NewReader(":+\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid integer with minus sign but no digits",
-			input: strings.NewReader(":-\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid integer with two plus signs",
-			input: strings.NewReader(":++1\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid integer with two plus signs",
-			input: strings.NewReader(":--1\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid integer with missing CR",
-			input: strings.NewReader(":1\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid integer with missing LF",
-			input: strings.NewReader(":1\r"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:           "Integer that returns error on second byte",
-			input:          io.MultiReader(strings.NewReader(":"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:           "Integer that returns error after the sign",
-			input:          io.MultiReader(strings.NewReader(":+"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:           "Integer that returns error after the first digit",
-			input:          io.MultiReader(strings.NewReader(":1"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:  "Uppercase bulk string",
-			input: strings.NewReader("$4\r\nPING\r\n"),
-			want:  redis.BulkString("PING"),
-		},
-		{
-			name:  "Lowercase bulk string",
-			input: strings.NewReader("$4\r\nping\r\n"),
-			want:  redis.BulkString("ping"),
-		},
-		{
-			name:  "Other bulk string",
-			input: strings.NewReader("$6\r\nFoobar\r\n"),
-			want:  redis.BulkString("Foobar"),
-		},
-		{
-			name:  "Longer bulk string",
-			input: strings.NewReader("$10\r\nenumerable\r\n"),
-			want:  redis.BulkString("enumerable"),
-		},
-		{
-			name:  "Bulk string with CR",
-			input: strings.NewReader("$1\r\n\r\r\n"),
-			want:  redis.BulkString("\r"),
-		},
-		{
-			name:  "Bulk string with LF",
-			input: strings.NewReader("$1\r\n\n\r\n"),
-			want:  redis.BulkString("\n"),
-		},
-		{
-			name:  "Invalid bulk string with just the starting $",
-			input: strings.NewReader("$"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string without length",
-			input: strings.NewReader("$foo\r\nbar\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with missing first CR",
-			input: strings.NewReader("$3\nfoo\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with missing first LF",
-			input: strings.NewReader("$3\rfoo\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with missing second CR",
-			input: strings.NewReader("$3\r\nfoo\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with missing second LF",
-			input: strings.NewReader("$3\r\nfoo\r"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with shorter payload than length suggests",
-			input: strings.NewReader("$2\r\na\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with less bytes in total than length suggests",
-			input: strings.NewReader("$6\r\na\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with just a length",
-			input: strings.NewReader("$1"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with just length",
-			input: strings.NewReader("$1"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid bulk string with just length and first CRLF",
-			input: strings.NewReader("$1\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:           "Bulk string that returns error on first digit",
-			input:          io.MultiReader(strings.NewReader("$"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:           "Bulk string that returns error on first CR",
-			input:          io.MultiReader(strings.NewReader("$1"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:           "Bulk string that returns error on first payload byte",
-			input:          io.MultiReader(strings.NewReader("$1\r\n"), badReader{}),
-			wantGenericErr: true,
-		},
-		{
-			name:  "RESP2 null bulk string",
-			input: strings.NewReader("$-1\r\n"),
-			want:  redis.RESP2NullBulkString{},
-		},
-		{
-			name:  "Invalid RESP2 null bulk string with incorrect length",
-			input: strings.NewReader("$-2\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid RESP2 null bulk string with missing CR",
-			input: strings.NewReader("$-1\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
-			name:  "Invalid RESP2 null bulk string with missing LF",
-			input: strings.NewReader("$-1\r"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
-		},
-		{
 			name:  "Empty array",
 			input: strings.NewReader("*0\r\n"),
 			want:  redis.Array{},
 		},
 		{
-			name:  "One element array with a simple string",
-			input: strings.NewReader("*1\r\nPING\r\n"),
+			name:  "One element array with uppercase bulk string",
+			input: strings.NewReader("*1\r\n$4\r\nPING\r\n"),
 			want: redis.Array{
-				redis.SimpleString("PING"),
-			},
-		},
-		{
-			name:  "Two element array with an integer and a bulk string",
-			input: strings.NewReader("*2\r\n:1\r\n$4\r\nPING\r\n"),
-			want: redis.Array{
-				redis.Integer(1),
 				redis.BulkString("PING"),
 			},
 		},
 		{
-			name:  "Ten element array of simple strings",
-			input: strings.NewReader("*10\r\nA\r\nB\r\nC\r\nD\r\nE\r\nF\r\nG\r\nH\r\nI\r\nJ\r\n"),
+			name:  "One element array with lowercase bulk string",
+			input: strings.NewReader("*1\r\n$4\r\nping\r\n"),
 			want: redis.Array{
-				redis.SimpleString("A"),
-				redis.SimpleString("B"),
-				redis.SimpleString("C"),
-				redis.SimpleString("D"),
-				redis.SimpleString("E"),
-				redis.SimpleString("F"),
-				redis.SimpleString("G"),
-				redis.SimpleString("H"),
-				redis.SimpleString("I"),
-				redis.SimpleString("J"),
+				redis.BulkString("ping"),
 			},
 		},
 		{
-			name:  "Array with inner empty array",
-			input: strings.NewReader("*1\r\n*0\r\n"),
+			name:  "One element array with some other bulk string",
+			input: strings.NewReader("*1\r\n$6\r\nFoobar\r\n"),
 			want: redis.Array{
-				redis.Array{},
+				redis.BulkString("Foobar"),
 			},
 		},
 		{
-			name:  "One element array with a malformed integer",
-			input: strings.NewReader("*1\r\n:not-an-integer\r\n"),
-			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			name:  "One element array with longer bulk string",
+			input: strings.NewReader("*1\r\n$10\r\nenumerable\r\n"),
+			want: redis.Array{
+				redis.BulkString("enumerable"),
+			},
 		},
 		{
-			name:  "Invalid array with missing CR",
+			name:  "One element array with bulk string with CR",
+			input: strings.NewReader("*1\r\n$1\r\n\r\r\n"),
+			want: redis.Array{
+				redis.BulkString("\r"),
+			},
+		},
+		{
+			name:  "One element array with bulk string with LF",
+			input: strings.NewReader("*1\r\n$1\r\n\n\r\n"),
+			want: redis.Array{
+				redis.BulkString("\n"),
+			},
+		},
+		{
+			name:  "Zero element array with missing CR",
 			input: strings.NewReader("*0\n"),
 			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got '\n'`),
 		},
 		{
 			name:  "Invalid array with missing LF",
 			input: strings.NewReader("*0\r"),
 			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: incomplete request`),
 		},
 		{
-			name:  "RESP2 null array",
-			input: strings.NewReader("*-1\r\n"),
-			want:  redis.RESP2NullArray{},
-		},
-		{
-			name:  "Invalid RESP2 null array with incorrect length",
-			input: strings.NewReader("*-2\r\n"),
+			name:  "Invalid array with two CRs",
+			input: strings.NewReader("*0\r\r"),
 			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\n', got '\r'`),
 		},
 		{
-			name:  "Invalid RESP2 null array with missing CR",
-			input: strings.NewReader("*-1\n"),
+			name:  "One element array with missing element",
+			input: strings.NewReader("*1\r\n"),
 			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: incomplete request`),
 		},
 		{
-			name:  "Invalid RESP2 null array with missing LF",
-			input: strings.NewReader("*-1\r"),
+			name:  "One element array with invalid bulk string with just the starting $",
+			input: strings.NewReader("*1\r\n$"),
 			// TODO: return as a redis.BulkError
-			wantErr: redis.NewSimpleError("SYNTAX invalid syntax"),
+			wantErr: redis.NewSimpleError("-ERR Protocol error: incomplete request"),
+		},
+		{
+			name:  "One element array with invalid bulk string without length",
+			input: strings.NewReader("*1\r\n$foo\r\nbar\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("-ERR Protocol error: expected digit, got 'f'"),
+		},
+		{
+			name:  "One element array with invalid bulk string with missing first CR",
+			input: strings.NewReader("*1\r\n$3\nfoo\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got '\n'`),
+		},
+		{
+			name:  "One element array with invalid bulk string with missing first LF",
+			input: strings.NewReader("*1\r\n$3\rfoo\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\n', got 'f'`),
+		},
+		{
+			name:  "One element array with invalid bulk string with missing second CR",
+			input: strings.NewReader("*1\r\n$3\r\nfoo\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got '\n'`),
+		},
+		{
+			name:  "One element array with invalid bulk string with missing second LF",
+			input: strings.NewReader("*1\r\n$3\r\nfoo\r"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("-ERR Protocol error: incomplete request"),
+		},
+		{
+			name:  "One element array with bulk string with shorter content than length suggests",
+			input: strings.NewReader("*1\r\n$2\r\na\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got '\n'`),
+		},
+		{
+			name:  "One element array with bulk string with less bytes in total than length suggests",
+			input: strings.NewReader("*1\r\n$6\r\na\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("-ERR Protocol error: incomplete request"),
+		},
+		{
+			name:  "One element array with invalid bulk string with just a length",
+			input: strings.NewReader("*1\r\n$1"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("-ERR Protocol error: incomplete request"),
+		},
+		{
+			name:  "One element array with invalid bulk string with just length and first CRLF",
+			input: strings.NewReader("*1\r\n$1\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("-ERR Protocol error: incomplete request"),
+		},
+		{
+			name:           "One element array with bulk string that returns error on first digit",
+			input:          io.MultiReader(strings.NewReader("*1\r\n$"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "One element array with bulk string that returns error on first CR",
+			input:          io.MultiReader(strings.NewReader("*1\r\n$1"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:           "One element array with bulk string that returns error on first payload byte",
+			input:          io.MultiReader(strings.NewReader("*1\r\n$1\r\n"), badReader{}),
+			wantGenericErr: true,
+		},
+		{
+			name:  "One element array with bulk string of negative length",
+			input: strings.NewReader("*1\r\n$-1\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError("-ERR Protocol error: expected digit, got '-'"),
+		},
+		{
+			name: "Ten element array of bulk strings",
+			input: strings.NewReader(
+				"*10\r\n" +
+					"$1\r\nA\r\n" +
+					"$1\r\nB\r\n" +
+					"$1\r\nC\r\n" +
+					"$1\r\nD\r\n" +
+					"$1\r\nE\r\n" +
+					"$1\r\nF\r\n" +
+					"$1\r\nG\r\n" +
+					"$1\r\nH\r\n" +
+					"$1\r\nI\r\n" +
+					"$1\r\nJ\r\n"),
+			want: redis.Array{
+				redis.BulkString("A"),
+				redis.BulkString("B"),
+				redis.BulkString("C"),
+				redis.BulkString("D"),
+				redis.BulkString("E"),
+				redis.BulkString("F"),
+				redis.BulkString("G"),
+				redis.BulkString("H"),
+				redis.BulkString("I"),
+				redis.BulkString("J"),
+			},
+		},
+		{
+			name:  "One element array with inner array",
+			input: strings.NewReader("*1\r\n*0\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '$', got '*'`),
+		},
+		{
+			name:  "One element array with negative length",
+			input: strings.NewReader("*-1\r\n$1\r\na\r\n"),
+			// TODO: return as a redis.BulkError
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected digit, got '-'`),
+		},
+		{
+			name:    "One element array with integer array element",
+			input:   strings.NewReader("*1\r\n:1\r\n"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '$', got ':'`),
+		},
+		{
+			name:    "One element array with CR array element",
+			input:   strings.NewReader("*1\r\n\r\r\n"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '$', got '\r'`),
+		},
+		{
+			name:    "One element array with LF array element",
+			input:   strings.NewReader("*1\r\n\n\r\n"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '$', got '\n'`),
+		},
+		{
+			name:    "Array with CR length",
+			input:   strings.NewReader("*\r"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected digit, got '\r'`),
+		},
+		{
+			name:    "Array with LF length",
+			input:   strings.NewReader("*\n"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected digit, got '\n'`),
+		},
+		{
+			name:    "Array with length ending with alphabetical character",
+			input:   strings.NewReader("*1a"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got 'a'`),
+		},
+		{
+			name:    "One element array with bulk string with longer content than length suggests",
+			input:   strings.NewReader("*1\r\n$1\r\nab\r\n"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got 'b'`),
 		},
 		{
 			name:    "No input",
