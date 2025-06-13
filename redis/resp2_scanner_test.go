@@ -178,6 +178,11 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got '\n'`),
 		},
 		{
+			name:    "One element array with bulk string with longer content than length suggests",
+			input:   strings.NewReader("*1\r\n$1\r\nab\r\n"),
+			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got 'b'`),
+		},
+		{
 			name:  "One element array with bulk string with less bytes in total than length suggests",
 			input: strings.NewReader("*1\r\n$6\r\na\r\n"),
 			// TODO: return as a redis.BulkError
@@ -286,9 +291,9 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got 'a'`),
 		},
 		{
-			name:    "One element array with bulk string with longer content than length suggests",
-			input:   strings.NewReader("*1\r\n$1\r\nab\r\n"),
-			wantErr: redis.NewSimpleError(`-ERR Protocol error: expected '\r', got 'b'`),
+			name:    "Array with length exceeding maximum signed 64-bit integer",
+			input:   strings.NewReader("*9223372036854775808"),
+			wantErr: redis.NewSimpleError("-ERR Protocol error: invalid multibulk length"),
 		},
 		{
 			name:    "No input",

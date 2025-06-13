@@ -9,9 +9,6 @@ import (
 
 var (
 	incompleteRequestError = NewSimpleError("-ERR Protocol error: incomplete request")
-
-	// TODO: remove
-	internalScannerSimpleError = errors.New("internal scanner error")
 )
 
 const (
@@ -79,12 +76,7 @@ func (s *RESP2Scanner) arrayElement() (Value, error) {
 	case bulkString:
 		value, err = s.bulkString()
 	default:
-		return nil, NewSimpleError(
-			fmt.Sprintf(
-				"-ERR Protocol error: expected '$', got '%s'",
-				s.escape(typ),
-			),
-		)
+		return nil, s.expectedGotError("'$'", typ)
 	}
 
 	s.resetToken()
@@ -120,7 +112,6 @@ func (s *RESP2Scanner) array() (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: error if length is greater than size of int64
 
 	result := Array{}
 	for range length {
@@ -156,28 +147,27 @@ func (s *RESP2Scanner) simpleString() (Value, error) {
 }
 
 func (s *RESP2Scanner) unsignedInt() (uint64, error) {
-	// Process first digit.
-	digit, err := s.peek()
+	result, err := s.firstUnsignedDigit()
 	if err != nil {
 		return 0, err
 	}
 
-	if !s.isDigit(digit) {
-		return 0, NewSimpleError(
-			fmt.Sprintf(
-				"-ERR Protocol error: expected digit, got '%s'",
-				s.escape(digit),
-			),
-		)
-	}
-
-	result := uint64(s.asciiDigitToInt(digit))
-
-	// Consume the digit.
-	if _, err := s.advance(); err != nil {
+	result, err = s.remainingUnsignedDigits(result)
+	if err != nil {
 		return 0, err
 	}
 
+	if err := s.consumeCR(); err != nil {
+		return 0, err
+	}
+	if err := s.consumeLF(); err != nil {
+		return 0, err
+	}
+
+	return uint64(result), nil
+}
+
+func (s *RESP2Scanner) remainingUnsignedDigits(sum int32) (int32, error) {
 	for {
 		digit, err := s.peek()
 		if err != nil {
@@ -189,7 +179,19 @@ func (s *RESP2Scanner) unsignedInt() (uint64, error) {
 			break
 		}
 
-		result = (10 * result) + uint64(s.asciiDigitToInt(digit))
+		var overflow bool
+		sum, overflow = s.checkedMultiply(10, sum)
+		if overflow {
+			return 0, NewSimpleError(
+				"-ERR Protocol error: invalid multibulk length",
+			)
+		}
+		sum, overflow = s.checkedAdd(sum, s.asciiDigitToInt32(digit))
+		if overflow {
+			return 0, NewSimpleError(
+				"-ERR Protocol error: invalid multibulk length",
+			)
+		}
 
 		// Consume the digit.
 		if _, err := s.advance(); err != nil {
@@ -197,14 +199,44 @@ func (s *RESP2Scanner) unsignedInt() (uint64, error) {
 		}
 	}
 
-	if err := s.consumeCR(); err != nil {
+	return sum, nil
+}
+
+func (s *RESP2Scanner) firstUnsignedDigit() (int32, error) {
+	// Process first digit.
+	digit, err := s.peek()
+	if err != nil {
 		return 0, err
 	}
-	if err := s.consumeLF(); err != nil {
+
+	if !s.isDigit(digit) {
+		return 0, s.expectedGotError("digit", digit)
+	}
+
+	result := s.asciiDigitToInt32(digit)
+
+	// Consume the digit.
+	if _, err := s.advance(); err != nil {
 		return 0, err
 	}
 
 	return result, nil
+}
+
+func (s *RESP2Scanner) checkedAdd(a, b int32) (int32, bool) {
+	result := int64(a) + int64(b)
+	if result != int64(int32(result)) {
+		return 0, true
+	}
+	return int32(result), false
+}
+
+func (s *RESP2Scanner) checkedMultiply(a, b int32) (int32, bool) {
+	result := int64(a) * int64(b)
+	if result != int64(int32(result)) {
+		return 0, true
+	}
+	return int32(result), false
 }
 
 func (s *RESP2Scanner) consumeCR() error {
@@ -213,12 +245,7 @@ func (s *RESP2Scanner) consumeCR() error {
 		return err
 	}
 	if !s.isCR(cr) {
-		return NewSimpleError(
-			fmt.Sprintf(
-				`-ERR Protocol error: expected '\r', got '%s'`,
-				s.escape(cr),
-			),
-		)
+		return s.expectedGotError(`'\r'`, cr)
 	}
 	return nil
 }
@@ -229,26 +256,20 @@ func (s *RESP2Scanner) consumeLF() error {
 		return err
 	}
 	if !s.isLF(lf) {
-		return NewSimpleError(
-			fmt.Sprintf(
-				`-ERR Protocol error: expected '\n', got '%s'`,
-				s.escape(lf),
-			),
-		)
+		return s.expectedGotError(`'\n'`, lf)
 	}
 	return nil
 }
 
 func (s *RESP2Scanner) escape(b byte) string {
-	var escaped string
-	if b == '\r' {
-		escaped = `\r`
-	} else if b == '\n' {
-		escaped = `\n`
-	} else {
-		escaped = string(b)
+	switch b {
+	case '\r':
+		return `\r`
+	case '\n':
+		return `\n`
+	default:
+		return string(b)
 	}
-	return escaped
 }
 
 func (s *RESP2Scanner) advanceFirstByte() (byte, error) {
@@ -287,9 +308,18 @@ func (s *RESP2Scanner) peek() (byte, error) {
 	return bs[0], nil
 }
 
-// TODO: remove
 func (s *RESP2Scanner) wrapAsInternalScannerSimpleError(cause error) error {
-	return fmt.Errorf("%v: %v", internalScannerSimpleError, cause)
+	return fmt.Errorf("internal scanner error: %v", cause)
+}
+
+func (s *RESP2Scanner) expectedGotError(expected string, got byte) error {
+	return NewSimpleError(
+		fmt.Sprintf(
+			`-ERR Protocol error: expected %s, got '%s'`,
+			expected,
+			s.escape(got),
+		),
+	)
 }
 
 func (s *RESP2Scanner) isCR(b byte) bool {
@@ -308,8 +338,8 @@ func (s *RESP2Scanner) isDigit(b byte) bool {
 	return '0' <= b && b <= '9'
 }
 
-func (s *RESP2Scanner) asciiDigitToInt(b byte) byte {
-	return b - '0'
+func (s *RESP2Scanner) asciiDigitToInt32(b byte) int32 {
+	return int32(b - '0')
 }
 
 func (s *RESP2Scanner) addToToken(b byte) {
