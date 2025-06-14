@@ -1,11 +1,9 @@
 package redis_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/codecrafters-io/redis-starter-go/redis"
-	"github.com/google/go-cmp/cmp"
 )
 
 // TODO: consider extracting out an interface test suite for future handlers
@@ -64,26 +62,7 @@ func TestPingHandler_Handle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := redis.PingHandler{}.Handle(tt.args)
 
-			if tt.wantErr != nil {
-				gotErr, ok := got.(error)
-				if !ok {
-					t.Fatalf("Handle(): got %v, want err %q", got, tt.wantErr)
-				}
-
-				var gotErrValue redis.ErrorValue
-				if !errors.As(gotErr, &gotErrValue) {
-					t.Fatalf("Handle(): got err %q, want err %q", gotErr, tt.wantErr)
-				}
-
-				if got, want := gotErrValue.Message(), tt.wantErr.Message(); got != want {
-					t.Fatalf("Handle(): got err %q, want err %q", gotErr, tt.wantErr)
-				}
-				return
-			}
-
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("Handle() mismatch (-want +got):\n%s", diff)
-			}
+			testEqual(t, got, tt.want, tt.wantErr)
 		})
 	}
 }
