@@ -6,11 +6,9 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
-// TODO: consider extracting out an interface test suite for future handlers
-
 func TestPingHandler_Command(t *testing.T) {
 	if got, want := (redis.PingHandler{}).Command(), "PING"; got != want {
-		t.Errorf("Command() = %v, want %v", got, want)
+		t.Errorf("Command() = %q, want %q", got, want)
 	}
 }
 
