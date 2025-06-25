@@ -1,10 +1,5 @@
 package redis
 
-import (
-	"fmt"
-	"strings"
-)
-
 type PingHandler struct{}
 
 func (h PingHandler) Command() string {
@@ -18,11 +13,6 @@ func (h PingHandler) Handle(args Array[BulkString]) Value {
 	case 1:
 		return args[0]
 	default:
-		return NewBulkError(
-			fmt.Sprintf(
-				"-ERR wrong number of arguments for '%s' command",
-				strings.ToLower(h.Command()),
-			),
-		)
+		return wrongNumberOfArgumentsError(h)
 	}
 }
