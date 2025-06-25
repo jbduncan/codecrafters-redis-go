@@ -6,7 +6,7 @@ func (h PingHandler) Command() string {
 	return "PING"
 }
 
-func (h PingHandler) Handle(args Array) Value {
+func (h PingHandler) Handle(args Array[BulkString]) Value {
 	switch len(args) {
 	case 0:
 		return SimpleString("PONG")

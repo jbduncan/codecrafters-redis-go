@@ -113,7 +113,7 @@ func (s *RESP2Scanner) array() (Value, error) {
 		return nil, err
 	}
 
-	result := Array{}
+	result := Array[Value]{}
 	for range length {
 		element, err := s.arrayElement()
 		if err != nil {
@@ -278,7 +278,7 @@ func (s *RESP2Scanner) advanceFirstByte() (byte, error) {
 		return 0, io.EOF
 	}
 	if err != nil {
-		return 0, s.wrapAsInternalScannerSimpleError(err)
+		return 0, s.wrapAsInternalScannerError(err)
 	}
 
 	return b, nil
@@ -290,25 +290,27 @@ func (s *RESP2Scanner) advance() (byte, error) {
 		return 0, incompleteRequestError
 	}
 	if err != nil {
-		return 0, s.wrapAsInternalScannerSimpleError(err)
+		return 0, s.wrapAsInternalScannerError(err)
 	}
 
 	return b, nil
 }
 
 func (s *RESP2Scanner) peek() (byte, error) {
-	bs, err := s.reader.Peek(1)
+	b, err := s.reader.ReadByte()
 	if errors.Is(err, io.EOF) {
 		return 0, incompleteRequestError
 	}
 	if err != nil {
-		return 0, s.wrapAsInternalScannerSimpleError(err)
+		return 0, s.wrapAsInternalScannerError(err)
 	}
 
-	return bs[0], nil
+	_ = s.reader.UnreadByte()
+
+	return b, nil
 }
 
-func (s *RESP2Scanner) wrapAsInternalScannerSimpleError(cause error) error {
+func (s *RESP2Scanner) wrapAsInternalScannerError(cause error) error {
 	return fmt.Errorf("internal scanner error: %v", cause)
 }
 

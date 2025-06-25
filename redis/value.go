@@ -73,10 +73,10 @@ func (s RESP2NullArray) isValue() {
 	unreachable()
 }
 
-type Array []Value
+type Array[T Value] []T
 
 // isValue implements Value.
-func (a Array) isValue() {
+func (a Array[T]) isValue() {
 	unreachable()
 }
 

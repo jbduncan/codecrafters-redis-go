@@ -24,7 +24,7 @@ func TestRouter_Route(t *testing.T) {
 		{
 			name:     "Array with PING bulk string command and one argument #1",
 			handlers: []redis.Handler{redis.PingHandler{}},
-			value: redis.Array{
+			value: redis.Array[redis.BulkString]{
 				redis.BulkString("PING"),
 				redis.BulkString("Hello, world"),
 			},
@@ -33,7 +33,7 @@ func TestRouter_Route(t *testing.T) {
 		{
 			name:     "Array with PING bulk string command and one argument #2",
 			handlers: []redis.Handler{redis.PingHandler{}},
-			value: redis.Array{
+			value: redis.Array[redis.BulkString]{
 				redis.BulkString("PING"),
 				redis.BulkString("Bye, world"),
 			},
@@ -42,7 +42,7 @@ func TestRouter_Route(t *testing.T) {
 		{
 			name:     "Array with PING bulk string command and two arguments",
 			handlers: []redis.Handler{redis.PingHandler{}},
-			value: redis.Array{
+			value: redis.Array[redis.BulkString]{
 				redis.BulkString("PING"),
 				redis.BulkString("Hello, world"),
 				redis.BulkString("Bye, world"),

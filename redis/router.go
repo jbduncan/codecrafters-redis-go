@@ -13,8 +13,8 @@ func NewRouter(handlers []Handler) *Router {
 }
 
 func (r Router) Route(value Value) Value {
-	if array, ok := value.(Array); ok {
+	if array, ok := value.(Array[BulkString]); ok {
 		return PingHandler{}.Handle(array[1:])
 	}
-	return PingHandler{}.Handle(Array{})
+	return PingHandler{}.Handle(Array[BulkString]{})
 }
