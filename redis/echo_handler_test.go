@@ -24,6 +24,28 @@ func TestEchoHandler_Handle(t *testing.T) {
 			args:    redis.Array[redis.BulkString]{},
 			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'echo' command"),
 		},
+		{
+			name: `"Hello, world"`,
+			args: redis.Array[redis.BulkString]{
+				redis.BulkString("Hello, world"),
+			},
+			want: redis.BulkString("Hello, world"),
+		},
+		{
+			name: `"It's dangerous to go alone! Take this."`,
+			args: redis.Array[redis.BulkString]{
+				redis.BulkString("It's dangerous to go alone! Take this."),
+			},
+			want: redis.BulkString("It's dangerous to go alone! Take this."),
+		},
+		{
+			name: "Two arguments",
+			args: redis.Array[redis.BulkString]{
+				redis.BulkString("foo"),
+				redis.BulkString("bar"),
+			},
+			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'echo' command"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

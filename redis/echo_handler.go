@@ -12,10 +12,15 @@ func (h EchoHandler) Command() string {
 }
 
 func (h EchoHandler) Handle(args Array[BulkString]) Value {
-	return NewBulkError(
-		fmt.Sprintf(
-			"-ERR wrong number of arguments for '%s' command",
-			strings.ToLower(h.Command()),
-		),
-	)
+	switch len(args) {
+	case 1:
+		return args[0]
+	default:
+		return NewBulkError(
+			fmt.Sprintf(
+				"-ERR wrong number of arguments for '%s' command",
+				strings.ToLower(h.Command()),
+			),
+		)
+	}
 }

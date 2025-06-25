@@ -14,6 +14,8 @@ func testEqual(
 	want redis.Value,
 	wantErr redis.ErrorValue,
 ) {
+	t.Helper()
+
 	if wantErr != nil {
 		gotErr, ok := got.(error)
 		if !ok {

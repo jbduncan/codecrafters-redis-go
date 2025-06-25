@@ -44,7 +44,7 @@ func TestPingHandler_Handle(t *testing.T) {
 				redis.BulkString("foo"),
 				redis.BulkString("bar"),
 			},
-			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'echo' command"),
+			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'ping' command"),
 		},
 		{
 			name: "Three arguments",
@@ -53,7 +53,7 @@ func TestPingHandler_Handle(t *testing.T) {
 				redis.BulkString("bar"),
 				redis.BulkString("baz"),
 			},
-			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'echo' command"),
+			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'ping' command"),
 		},
 	}
 	for _, tt := range tests {

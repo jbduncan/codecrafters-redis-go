@@ -47,7 +47,7 @@ func TestRouter_Route(t *testing.T) {
 				redis.BulkString("Hello, world"),
 				redis.BulkString("Bye, world"),
 			},
-			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'echo' command"),
+			wantErr: redis.NewBulkError("-ERR wrong number of arguments for 'ping' command"),
 		},
 	}
 	for _, tt := range tests {
