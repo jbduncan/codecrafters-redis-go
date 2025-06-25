@@ -12,7 +12,7 @@ func TestSimpleError_Message(t *testing.T) {
 
 	tests := []struct {
 		name string
-		err  redis.SimpleError
+		err  redis.ErrorValue
 		want string
 	}{
 		{
@@ -23,6 +23,16 @@ func TestSimpleError_Message(t *testing.T) {
 		{
 			name: "ERR bar",
 			err:  redis.NewSimpleError("ERR bar"),
+			want: "ERR bar",
+		},
+		{
+			name: "ERR foo",
+			err:  redis.NewBulkError("ERR foo"),
+			want: "ERR foo",
+		},
+		{
+			name: "ERR bar",
+			err:  redis.NewBulkError("ERR bar"),
 			want: "ERR bar",
 		},
 	}
