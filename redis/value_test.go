@@ -17,22 +17,22 @@ func TestSimpleError_Message(t *testing.T) {
 	}{
 		{
 			name: "ERR foo",
-			err:  redis.NewSimpleError("ERR foo"),
+			err:  redis.MakeSimpleError("ERR foo"),
 			want: "ERR foo",
 		},
 		{
 			name: "ERR bar",
-			err:  redis.NewSimpleError("ERR bar"),
+			err:  redis.MakeSimpleError("ERR bar"),
 			want: "ERR bar",
 		},
 		{
 			name: "ERR foo",
-			err:  redis.NewBulkError("ERR foo"),
+			err:  redis.MakeBulkError("ERR foo"),
 			want: "ERR foo",
 		},
 		{
 			name: "ERR bar",
-			err:  redis.NewBulkError("ERR bar"),
+			err:  redis.MakeBulkError("ERR bar"),
 			want: "ERR bar",
 		},
 	}

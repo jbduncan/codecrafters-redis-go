@@ -11,7 +11,7 @@ type Handler interface {
 }
 
 func wrongNumberOfArgumentsError(h Handler) BulkError {
-	return NewBulkError(
+	return MakeBulkError(
 		fmt.Sprintf(
 			"-ERR wrong number of arguments for '%s' command",
 			strings.ToLower(h.Command()),
