@@ -24,6 +24,7 @@ type SimpleError struct {
 	message string
 }
 
+// TODO: rename to MakeSimpleError
 func NewSimpleError(message string) SimpleError {
 	return SimpleError{
 		message: message,
@@ -84,6 +85,7 @@ type BulkError struct {
 	message string
 }
 
+// TODO: rename to MakeBulkError
 func NewBulkError(message string) BulkError {
 	return BulkError{
 		message: message,
