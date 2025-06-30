@@ -24,11 +24,9 @@ func (r Router) Route(value Value) Value {
 		return r.handlers[0].Handle(Array[BulkString]{})
 	}
 
-	// TODO: test that result of r.handlers[0].Handle is returned
 	// TODO: gracefully handle values which aren't Array[BulkString]s
 	// TODO: gracefully handle arrays of len 0
 	// TODO: handle 2 handlers
 	// TODO: handle 0 handlers
-	r.handlers[0].Handle(value.(Array[BulkString])[1:])
-	return Array[BulkString]{"Hello, world"}
+	return r.handlers[0].Handle(value.(Array[BulkString])[1:])
 }

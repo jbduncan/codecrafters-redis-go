@@ -40,7 +40,7 @@ func TestRouter_Route(t *testing.T) {
 				},
 			},
 			input:    redis.Array[redis.BulkString]{"ECHO", "Hello, world"},
-			want:     redis.Array[redis.BulkString]{"Hello, world"},
+			want:     redis.BulkString("Hello, world"),
 			wantArgs: redis.Array[redis.BulkString]{"Hello, world"},
 		},
 		{
@@ -68,14 +68,29 @@ func TestRouter_Route(t *testing.T) {
 				},
 			},
 			input:    redis.Array[redis.BulkString]{"ECHO", "Bye, world"},
-			want:     redis.Array[redis.BulkString]{"Hello, world"},
+			want:     redis.BulkString("Hello, world"),
 			wantArgs: redis.Array[redis.BulkString]{"Bye, world"},
+		},
+		{
+			name: `["ECHO", "Hello, world"]: "Bye, world"`,
+			handler: &MockHandler{
+				CommandFunc: func() string {
+					return "ECHO"
+				},
+				HandleFunc: func(args redis.Array[redis.BulkString]) redis.Value {
+					return redis.BulkString("Bye, world")
+				},
+			},
+			input:    redis.Array[redis.BulkString]{"ECHO", "Hello, world"},
+			want:     redis.BulkString("Bye, world"),
+			wantArgs: redis.Array[redis.BulkString]{"Hello, world"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := redis.NewRouter([]redis.Handler{tt.handler}).Route(tt.input)
+			result := redis.NewRouter([]redis.Handler{tt.handler}).
+				Route(tt.input)
 
 			testEqual(t, result, tt.want, nil)
 			testHandleCalledWith(t, tt.handler, tt.wantArgs)
