@@ -17,8 +17,8 @@ const (
 )
 
 type RESP2Scanner struct {
-	reader *bufio.Reader
-	buf    []byte
+	reader   *bufio.Reader
+	tokenBuf []byte
 }
 
 func NewRESP2Scanner(r io.Reader) *RESP2Scanner {
@@ -345,13 +345,13 @@ func (s *RESP2Scanner) asciiDigitToInt32(b byte) int32 {
 }
 
 func (s *RESP2Scanner) addToToken(b byte) {
-	s.buf = append(s.buf, b)
+	s.tokenBuf = append(s.tokenBuf, b)
 }
 
 func (s *RESP2Scanner) token() []byte {
-	return s.buf
+	return s.tokenBuf
 }
 
 func (s *RESP2Scanner) resetToken() {
-	s.buf = make([]byte, 0, 16)
+	s.tokenBuf = make([]byte, 0, 16)
 }

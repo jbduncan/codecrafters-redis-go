@@ -1,32 +1,39 @@
 package redis
 
-type Router struct {
-	handlers []Handler
-}
+import (
+	"fmt"
+	"strings"
+)
 
-// TODO: Route method with similar signature to Handler.Handle that determines
-//       which Handler to call based on "args[0] == matchingHandler.Command()"
-//       and forwards args[1:] onto that Handler.
-// TODO: Route method: return BulkError for unrecognised command.
-// TODO: Route method: return BulkError when given zero args.
+type Router struct{}
 
-func NewRouter(handlers []Handler) *Router {
-	return &Router{
-		handlers: handlers,
-	}
+func NewRouter() *Router {
+	return &Router{}
 }
 
 func (r Router) Route(value Value) Value {
-	if _, ok := value.(SimpleString); ok {
-		// TODO: check that value is "PING", otherwise return error
-		// TODO: handle 2 handlers
-		// TODO: handle 0 handlers
-		return r.handlers[0].Handle(Array[BulkString]{})
+	if cmd, ok := value.(SimpleString); ok {
+		if strings.EqualFold(string(cmd), "ping") {
+			return PingHandler{}.Handle(nil)
+		}
+		return MakeBulkError(fmt.Sprintf("-ERR unknown command `%s`", cmd))
 	}
 
-	// TODO: gracefully handle values which aren't Array[BulkString]s
-	// TODO: gracefully handle arrays of len 0
-	// TODO: handle 2 handlers
-	// TODO: handle 0 handlers
-	return r.handlers[0].Handle(value.(Array[BulkString])[1:])
+	arr, ok := value.(Array[BulkString])
+	if !ok {
+		return MakeBulkError("-ERR unknown type")
+	}
+	if len(arr) == 0 {
+		return MakeBulkError("-ERR no command")
+	}
+
+	cmd := arr[0]
+	args := arr[1:]
+	switch strings.ToLower(string(cmd)) {
+	case "echo":
+		return EchoHandler{}.Handle(args)
+	case "ping":
+		return PingHandler{}.Handle(args)
+	}
+	return MakeBulkError(fmt.Sprintf("-ERR unknown command `%s`", cmd))
 }

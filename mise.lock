@@ -4,10 +4,3 @@ backend = "core:go"
 
 [tools.go.checksums]
 "go1.24.4.darwin-arm64.tar.gz" = "sha256:27973684b515eaf461065054e6b572d9390c05e69ba4a423076c160165336470"
-
-[tools."ubi:vektra/mockery"]
-version = "3.5.0"
-backend = "ubi:vektra/mockery"
-
-[tools."ubi:vektra/mockery".checksums]
-mockery-macos-aarch64 = "sha256:df153c73247d7c6e8b823b0381bb3fc88ac477e54ce33cc015c108f45c252c47"

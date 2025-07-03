@@ -4,7 +4,6 @@ lockfile = true
 
 [tools]
 go = "latest"
-"ubi:vektra/mockery" = "latest"
 
 [tasks.build]
 description = "Compile the server."
@@ -20,17 +19,10 @@ depends = "build"
 alias = "s"
 quiet = true
 
-[tasks.mocks]
-description = "Run the Mockery mock generation tool."
-run = "mockery"
-sources = ["go.mod", "go.sum", "**/*.go", ".mockery-yml"]
-outputs = { auto = true }
-alias = "m"
-
 [tasks.test]
 description = "Run the unit tests."
 run = "go test -shuffle=on -race -cover -timeout=15s ./..."
-depends = ["build", "mocks"]
+depends = "build"
 sources = ["go.mod", "go.sum", "**/*.go"]
 outputs = { auto = true }
 alias = "t"
