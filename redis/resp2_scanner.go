@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 )
 
 var (
@@ -14,6 +15,9 @@ var (
 const (
 	bulkStringType = '$'
 	arrayType      = '*'
+
+	// 512 megabytes
+	mb512 = 51_200_000_000
 )
 
 type RESP2Scanner struct {
@@ -23,26 +27,42 @@ type RESP2Scanner struct {
 
 func NewRESP2Scanner(r io.Reader) *RESP2Scanner {
 	s := &RESP2Scanner{
-		reader: bufio.NewReader(r),
+		reader: bufio.NewReader(io.LimitReader(r, mb512)),
 	}
 	s.resetToken()
 	return s
 }
 
-// TODO: consider turning Scan() into an iter.Seq2[Value, error] or
-//       a Scan()/Token()/Err() arrangement a la bufio.Scanner
-
-// Scan returns the next redis.Value from the underlying reader.
-//
-// If no more values are available, an io.EOF error is returned and no more
-// calls to Scan should be made.
+// ScanAll returns an iterator that loops over all [redis.Value] instances from
+// the underlying reader.
 //
 // If the next value is not valid syntax according to the Redis RESP2 protocol,
-// then an error of type redis.ErrorValue is returned, suitable for sending
-// back to the client via redis.Writer.Write.
+// then the iterator returns an error of type redis.ErrorValue, suitable for
+// sending back to the client via redis.Writer.Write.
 //
-// If any other sort of error occurred, then a generic error is returned.
-func (s *RESP2Scanner) Scan() (Value, error) {
+// If any other sort of error occurred, then the iterator returns a generic
+// error.
+//
+// If any sort of error is returned, then the iterator will stop.
+func (s *RESP2Scanner) ScanAll() iter.Seq2[Value, error] {
+	return func(yield func(Value, error) bool) {
+		for {
+			value, err := s.scan()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield(value, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (s *RESP2Scanner) scan() (Value, error) {
 	typ, err := s.advanceFirstByte()
 	if err != nil {
 		// This returns io.EOF if there is no more input to process.

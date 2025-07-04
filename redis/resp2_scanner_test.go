@@ -3,20 +3,26 @@ package redis_test
 import (
 	"errors"
 	"io"
+	"iter"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/codecrafters-io/redis-starter-go/redis"
 	"github.com/google/go-cmp/cmp"
 )
 
-type badReader struct{}
+var (
+	badReader = iotest.ErrReader(errors.New("ganondorf stole the triforce"))
+)
 
-func (r badReader) Read(_ []byte) (n int, err error) {
-	return 0, errors.New("ganondorf stole the triforce")
+func iterSeq2Pull(t *testing.T, values iter.Seq2[redis.Value, error]) func() (redis.Value, error, bool) {
+	next, stop := iter.Pull2(values)
+	t.Cleanup(stop)
+	return next
 }
 
-func TestRESP2Scanner_Scan(t *testing.T) {
+func TestRESP2Scanner_ScanAll(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -58,7 +64,7 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 		},
 		{
 			name:           "Simple string that returns error on LF",
-			input:          io.MultiReader(strings.NewReader("PING\r"), badReader{}),
+			input:          io.MultiReader(strings.NewReader("PING\r"), badReader),
 			wantGenericErr: true,
 		},
 		{
@@ -185,17 +191,17 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 		},
 		{
 			name:           "One element array with bulk string that returns error on first digit",
-			input:          io.MultiReader(strings.NewReader("*1\r\n$"), badReader{}),
+			input:          io.MultiReader(strings.NewReader("*1\r\n$"), badReader),
 			wantGenericErr: true,
 		},
 		{
 			name:           "One element array with bulk string that returns error on first CR",
-			input:          io.MultiReader(strings.NewReader("*1\r\n$1"), badReader{}),
+			input:          io.MultiReader(strings.NewReader("*1\r\n$1"), badReader),
 			wantGenericErr: true,
 		},
 		{
 			name:           "One element array with bulk string that returns error on first payload byte",
-			input:          io.MultiReader(strings.NewReader("*1\r\n$1\r\n"), badReader{}),
+			input:          io.MultiReader(strings.NewReader("*1\r\n$1\r\n"), badReader),
 			wantGenericErr: true,
 		},
 		{
@@ -276,13 +282,8 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			wantErr: redis.MakeBulkError("-ERR Protocol error: invalid multibulk length"),
 		},
 		{
-			name:    "No input",
-			input:   strings.NewReader(""),
-			wantErr: io.EOF,
-		},
-		{
 			name:           "Error-returning input",
-			input:          badReader{},
+			input:          badReader,
 			wantGenericErr: true,
 		},
 	}
@@ -291,55 +292,101 @@ func TestRESP2Scanner_Scan(t *testing.T) {
 			t.Parallel()
 
 			s := redis.NewRESP2Scanner(tt.input)
-			got, err := s.Scan()
+			next := iterSeq2Pull(t, s.ScanAll())
 
+			got, err, ok := next()
+
+			if !ok {
+				t.Fatalf("ScanAll(): got zero elements, want one element")
+			}
 			if tt.wantGenericErr {
 				if err == nil {
-					t.Fatalf("Scan(): got a <nil> error, want a non-nil error")
+					t.Fatalf(
+						"ScanAll(): got a <nil> error, want a non-nil error",
+					)
 				}
 				if _, ok := err.(redis.Value); ok {
 					t.Fatalf(
-						"Scan(): got err %q, want a generic error that is "+
+						"ScanAll(): got err %q, want a generic error that is "+
 							"not a redis.Value",
 						err,
 					)
 				}
 				return
 			}
-
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("Scan(): got err %q, want %q", err, tt.wantErr)
+					t.Fatalf("ScanAll(): got err %q, want %q", err, tt.wantErr)
 				}
 				return
 			}
-
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("Scan() mismatch (-want +got):\n%s", diff)
+				t.Errorf("ScanAll() mismatch (-want +got):\n%s", diff)
 			}
 
-			secondGot, secondScanErr := s.Scan()
+			got2, err2, ok2 := next()
 
-			if !errors.Is(secondScanErr, io.EOF) {
+			if err2 != nil {
+				t.Fatalf("ScanAll(): got err %q, want <nil> err", err2)
+			}
+			if ok2 {
 				t.Fatalf(
-					"Scan(): nothing else should have been read: "+
-						"got %q, err %q; want io.EOF",
-					secondGot, secondScanErr)
+					"ScanAll(): nothing else should have been read; "+
+						"got value %q",
+					got2,
+				)
 			}
 		})
 	}
+
+	t.Run("No input", func(t *testing.T) {
+		t.Parallel()
+
+		noInput := strings.NewReader("")
+		s := redis.NewRESP2Scanner(noInput)
+		next := iterSeq2Pull(t, s.ScanAll())
+
+		got, err, ok := next()
+		if err != nil {
+			t.Fatalf("ScanAll(): got err %q, want <nil> err", err)
+		}
+		if ok {
+			t.Fatalf("ScanAll(): got element %q, want 0 elements", got)
+		}
+	})
 
 	t.Run("Pipelined inputs", func(t *testing.T) {
 		t.Parallel()
 
 		input := "PING\r\nPING\r\n"
 		want := redis.SimpleString("PING")
+
 		s := redis.NewRESP2Scanner(strings.NewReader(input))
-		for range 2 {
-			got, _ := s.Scan()
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("Scan() mismatch (-want +got):\n%s", diff)
+		next := iterSeq2Pull(t, s.ScanAll())
+
+		for i := range 2 {
+			got, err, ok := next()
+			if err != nil {
+				t.Fatalf("ScanAll(): got err %q, want <nil> err", err)
 			}
+			if !ok {
+				t.Fatalf("ScanAll(): got %d element(s), want 2 elements", i)
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("ScanAll() mismatch (-want +got):\n%s", diff)
+			}
+		}
+
+		got, err, ok := next()
+		if err != nil {
+			t.Fatalf("ScanAll(): got err %q, want <nil> err", err)
+		}
+		if ok {
+			t.Fatalf(
+				"ScanAll(): nothing else should have been read; "+
+					"got value %q",
+				got,
+			)
 		}
 	})
 }

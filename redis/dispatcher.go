@@ -49,8 +49,7 @@ func (d *Dispatcher) Run() {
 
 func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 	connScanner := NewRESP2Scanner(tcpConn)
-	for {
-		_, err := connScanner.Scan()
+	for _, err := range connScanner.ScanAll() {
 		if errors.Is(err, io.EOF) {
 			return // All input processed
 		}
