@@ -3,121 +3,127 @@
 package integration_test
 
 import (
-	"bufio"
 	"io"
+	"strings"
+	"sync"
 	"testing"
+)
+
+const (
+	pong          = "+PONG\r\n"
+	pingLowercase = "*1\r\n$4\r\nping\r\n"
+	pingUppercase = "*1\r\n$4\r\nPING\r\n"
 )
 
 func TestPing(t *testing.T) {
 	tests := []struct {
-		name      string
-		request   string
-		responses []string
+		name     string
+		request  string
+		response string
 	}{
-		// TODO: remove test as it's not a valid request:
-		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
-			name:      "PING: uppercase simple string request",
-			request:   "PING\r\n",
-			responses: []string{"+PONG\r\n"},
-		},
-		// TODO: change to an array request:
-		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
-		{
-			name:      "PING: lowercase simple string request",
-			request:   "ping\r\n",
-			responses: []string{"+PONG\r\n"},
+			name:     "PING: lowercase array request",
+			request:  pingLowercase,
+			response: pong,
 		},
 		{
-			name:      "PING: array request",
-			request:   "*1\r\n$4\r\nPING\r\n",
-			responses: []string{"+PONG\r\n"},
+			name:     "PING: uppercase array request",
+			request:  pingUppercase,
+			response: pong,
 		},
-		// TODO: change to a pipeline of array requests:
-		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#sending-commands-to-a-redis-server
 		{
-			name:      "three PINGs: three pipelined simple requests",
-			request:   "PING\r\nPING\r\nPING\r\n",
-			responses: []string{"+PONG\r\n", "+PONG\r\n", "+PONG\r\n"},
+			name:     "three PINGs: three pipelined simple requests",
+			request:  strings.Repeat(pingLowercase, 3),
+			response: strings.Repeat(pong, 3),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stop := runServer(t)
-			defer stop()
-			conn, err := dialServer()
+			runServer(t)
+			conn := mustDialServer(t)
+
+			if _, err := io.WriteString(conn, tt.request); err != nil {
+				t.Fatalf(
+					"did not write message %q successfully: %v",
+					tt.request,
+					err,
+				)
+			}
+
+			got, err := readResponse(conn, len(tt.response))
 			if err != nil {
-				t.Fatalf("no connection to server: %v", err)
+				t.Errorf("did not read conn successfully: %v", err)
 			}
-			defer loggingClose(t, conn)
-			connReader := bufio.NewReader(conn)
-
-			if _, err = io.WriteString(conn, tt.request); err != nil {
-				t.Fatalf("did not write message %q successfully: %v", tt.request, err)
-			}
-
-			for _, want := range tt.responses {
-				got, err := connReader.ReadString('\n')
-				if err != nil {
-					t.Errorf("did not read conn successfully: %v", err)
-				}
-				if got != want {
-					t.Errorf(
-						`PING request: got response %q, want %q`, got, want,
-					)
-				}
+			want := tt.response
+			if got != want {
+				t.Errorf(
+					`PING request: got response %q, want %q`, got, want,
+				)
 			}
 		})
 	}
 
-	t.Run("two PINGS: two concurrent requests", func(t *testing.T) {
-		stop := runServer(t)
-		defer stop()
-		conn1, err := dialServer()
-		if err != nil {
-			t.Fatalf("no connection to server: %v", err)
-		}
-		defer loggingClose(t, conn1)
-		conn2, err := dialServer()
-		if err != nil {
-			t.Fatalf("no connection to server: %v", err)
-		}
-		defer loggingClose(t, conn2)
-		conn1Reader := bufio.NewReader(conn1)
-		conn2Reader := bufio.NewReader(conn2)
+	for _, tt := range []struct {
+		name            string
+		concurrentPings int
+	}{
+		{
+			name:            "two concurrent pings",
+			concurrentPings: 2,
+		},
+		{
+			name:            "1,000 concurrent pings",
+			concurrentPings: 1_000,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			runServer(t)
 
-		if _, err = io.WriteString(conn1, "PING\r\n"); err != nil {
-			t.Fatalf(`did not write message "PING\r\n" successfully: %v`, err)
-		}
-		if _, err = io.WriteString(conn2, "PING\r\n"); err != nil {
-			t.Fatalf(`did not write message "PING\r\n" successfully: %v`, err)
-		}
+			var countDownLatch sync.WaitGroup
+			countDownLatch.Add(tt.concurrentPings)
+			var allSuccessful sync.WaitGroup
+			allSuccessful.Add(tt.concurrentPings)
+			errCh := make(chan struct{})
 
-		got, err := conn1Reader.ReadString('\n')
-		if err != nil {
-			t.Errorf("did not read conn1Reader successfully: %v", err)
-		}
-		if got != "+PONG\r\n" {
-			t.Errorf(
-				`PING request: got response %q, want "+PONG\r\n"`, got,
-			)
-		}
+			for range tt.concurrentPings {
+				go func() {
+					conn := mustDialServer(t)
 
-		got, err = conn2Reader.ReadString('\n')
-		if err != nil {
-			t.Errorf("did not read conn2Reader successfully: %v", err)
-		}
-		if got != "+PONG\r\n" {
-			t.Errorf(
-				`PING request: got response %q, want "+PONG\r\n"`, got,
-			)
-		}
-	})
-}
+					countDownLatch.Done()
+					countDownLatch.Wait()
 
-func loggingClose(t *testing.T, closer io.Closer) {
-	err := closer.Close()
-	if err != nil {
-		t.Log(err)
+					if _, err := io.WriteString(conn, pingLowercase); err != nil {
+						t.Errorf(
+							`did not write message %q successfully: %v`,
+							pingLowercase,
+							err,
+						)
+						errCh <- struct{}{}
+						return
+					}
+
+					got, err := readResponse(conn, len(pong))
+					if err != nil {
+						t.Errorf("did not read conn successfully: %v", err)
+						errCh <- struct{}{}
+					}
+					if got != pong {
+						t.Errorf(
+							`PING request: got response %q, want %q`, got, pong,
+						)
+						errCh <- struct{}{}
+					}
+
+					allSuccessful.Done()
+				}()
+			}
+
+			select {
+			case <-errCh:
+				t.FailNow()
+			case <-doneChan(&allSuccessful):
+				// Test has passed
+			}
+		})
 	}
 }
