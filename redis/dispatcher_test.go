@@ -127,6 +127,7 @@ func TestDispatcher_Run(t *testing.T) {
 					c := <-serverConns
 					return c.tcpConn, c.err
 				},
+				func() {},
 			)
 
 			go dispatcher.Run()
@@ -173,6 +174,7 @@ func TestDispatcher_Run(t *testing.T) {
 				c := <-serverConns
 				return c.tcpConn, c.err
 			},
+			func() {},
 		)
 
 		go dispatcher.Run()
@@ -212,7 +214,7 @@ func TestDispatcher_Run(t *testing.T) {
 	})
 
 	t.Run(
-		"edge case: when tcpConnAccepter returns error, then no attempt to "+
+		"edge case: when acceptTCPConn returns error, then no attempt to "+
 			"read the conn is made",
 		func(t *testing.T) {
 			t.Parallel()
@@ -222,6 +224,7 @@ func TestDispatcher_Run(t *testing.T) {
 				func() (redis.TCPConn, error) {
 					return conn, errors.New("no new connections left")
 				},
+				func() {},
 			)
 
 			go dispatcher.Run()

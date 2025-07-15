@@ -15,27 +15,39 @@ type event struct {
 }
 
 type Dispatcher struct {
-	tcpConnAccepter TCPConnAccepter
-	events          chan event
+	acceptTCPConn TCPConnAccepter
+	close         func()
+	quit          chan struct{}
+	events        chan event
 }
 
-func NewDispatcher(tcpConnAccepter TCPConnAccepter) *Dispatcher {
+// TODO: consider merging these two parameters together into an interface to
+//       make their relationship more obvious.
+
+func NewDispatcher(tcpConnAccepter TCPConnAccepter, close func()) *Dispatcher {
 	return &Dispatcher{
-		tcpConnAccepter: tcpConnAccepter,
-		events:          make(chan event, 512),
+		acceptTCPConn: tcpConnAccepter,
+		close:         close,
+		quit:          make(chan struct{}),
+		events:        make(chan event, 512),
 	}
 }
 
 func (d *Dispatcher) Run() {
 	go func() {
 		for {
-			tcpConn, err := d.tcpConnAccepter()
-			if err != nil {
-				logError(err)
-				return
-			}
+			tcpConn, err := d.acceptTCPConn()
 
-			go d.handleConn(tcpConn)
+			if err != nil {
+				select {
+				case <-d.quit:
+					return
+				default:
+					logError(err)
+				}
+			} else {
+				go d.handleConn(tcpConn)
+			}
 		}
 	}()
 
@@ -76,4 +88,12 @@ func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 			conn:  tcpConn,
 		}
 	}
+}
+
+func (d *Dispatcher) Stop() {
+	// Stops more TCP connections from being accepted and makes Run() wait for
+	// d.events to be drained before terminating.
+	close(d.quit)
+	close(d.events)
+	d.close()
 }

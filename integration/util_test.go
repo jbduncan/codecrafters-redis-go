@@ -1,53 +1,25 @@
+//go:build integration
+
 package integration_test
 
 import (
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/await"
+	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
 const defaultPort = 6379
 
 func runServer(t *testing.T) {
-	// TODO: strongly consider calling redis.RunServer() rather than starting
-	//       the binary to save time and make things easier to debug.
-	// TODO: if doing the above, keep one test around that does a smoke test
-	//       against the binary.
-
-	rootDir, err := runCommandAndCaptureOutput("git", "rev-parse", "--show-toplevel")
-	if err != nil {
-		t.Logf("git rev-parse --show-toplevel: %s", rootDir)
-		t.Fatalf("server not built: %v", err)
-	}
-
-	serverBinaryPath := filepath.Join(t.TempDir(), "server")
-	if err := cmd(
-		"go",
-		"build",
-		"-o",
-		serverBinaryPath,
-		rootDir,
-	).Run(); err != nil {
-		t.Fatalf("server not built: %v", err)
-	}
-
-	serverCmd := cmd(serverBinaryPath)
-	if err := serverCmd.Start(); err != nil {
-		t.Fatalf("server did not start: %v", err)
-	}
-
-	t.Cleanup(func() {
-		stopServer(t, serverCmd)
-	})
+	server := redis.Server{}
+	go server.Run()
+	t.Cleanup(server.Stop)
 
 	if err := awaitServerStartup(); err != nil {
 		t.Error(err.Error())
@@ -56,7 +28,8 @@ func runServer(t *testing.T) {
 
 func awaitServerStartup() error {
 	timeout := 5 * time.Second
-	if !await.Until(serverIsUp, timeout, 200*time.Millisecond) {
+	sleep := 50 * time.Millisecond
+	if !await.Until(serverIsUp, timeout, sleep) {
 		return fmt.Errorf("server did not start up in %s", timeout)
 	}
 	return nil
@@ -91,16 +64,6 @@ func mustDialServer(t *testing.T) net.Conn {
 	return conn
 }
 
-func stopServer(t *testing.T, serverCmd *exec.Cmd) {
-	// TODO: Replace with serverCmd.Process.Signal(os.Interrupt) when the
-	//       server can gracefully shut down:
-	//   - https://victoriametrics.com/blog/go-graceful-shutdown/
-	//   - https://www.rudderstack.com/blog/implementing-graceful-shutdown-in-go/
-	if err := serverCmd.Process.Kill(); err != nil {
-		t.Fatalf("server did not stop gracefully: %v", err)
-	}
-}
-
 func doneChan(wg *sync.WaitGroup) chan struct{} {
 	done := make(chan struct{})
 	go func() {
@@ -124,17 +87,4 @@ func loggingClose(t *testing.T, closer io.Closer) {
 	if err != nil {
 		t.Log(err)
 	}
-}
-
-func runCommandAndCaptureOutput(name string, args ...string) (string, error) {
-	c := exec.Command(name, args...)
-	output, err := c.CombinedOutput()
-	return strings.TrimRight(string(output), "\n"), err
-}
-
-func cmd(name string, args ...string) *exec.Cmd {
-	c := exec.Command(name, args...)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return c
 }

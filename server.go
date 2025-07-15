@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	redis.RunServer()
+	(&redis.Server{}).Run()
 }

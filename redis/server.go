@@ -11,7 +11,18 @@ const (
 	defaultPort = 6379
 )
 
-func RunServer() {
+type Server struct {
+	d *Dispatcher
+}
+
+func (s *Server) Run() {
+	// TODO: Figure out a way to make the TCP server stop gracefully on a
+	//       SIGINT or SIGTERM, including terminating slow TCP connections.
+	//   - https://victoriametrics.com/blog/go-graceful-shutdown/
+	//   - https://www.rudderstack.com/blog/implementing-graceful-shutdown-in-go/
+	//   - https://eli.thegreenplace.net/2020/graceful-shutdown-of-a-tcp-server-in-go/
+	//   - Search other resources
+
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	l, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", defaultPort))
@@ -19,9 +30,16 @@ func RunServer() {
 		logError(fmt.Errorf("port %d not bound: %w", defaultPort, err))
 		os.Exit(1)
 	}
-	defer closeAndLogError(l)
 
 	slog.Info(fmt.Sprintf("server is listening on port %d", defaultPort))
 
-	NewDispatcher(func() (TCPConn, error) { return l.Accept() }).Run()
+	s.d = NewDispatcher(
+		func() (TCPConn, error) { return l.Accept() },
+		func() { closeAndLogError(l) },
+	)
+	s.d.Run()
+}
+
+func (s *Server) Stop() {
+	s.d.Stop()
 }
