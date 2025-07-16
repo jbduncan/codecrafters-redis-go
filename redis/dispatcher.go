@@ -45,9 +45,10 @@ func (d *Dispatcher) Run() {
 				default:
 					logError(err)
 				}
-			} else {
-				go d.handleConn(tcpConn)
+				continue
 			}
+
+			go d.handleConn(tcpConn)
 		}
 	}()
 

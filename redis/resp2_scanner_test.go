@@ -291,8 +291,8 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := redis.NewRESP2Scanner(tt.input)
-			next := iterSeq2Pull(t, s.ScanAll())
+			s := redis.NewRESP2Scanner(tt.input).ScanAll()
+			next := iterSeq2Pull(t, s)
 
 			got, err, ok := next()
 
@@ -319,6 +319,8 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 					t.Fatalf("ScanAll(): got err %q, want %q", err, tt.wantErr)
 				}
 				return
+			} else if err != nil {
+				t.Fatalf("ScanAll(): got err %q, want <nil> err", err)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("ScanAll() mismatch (-want +got):\n%s", diff)

@@ -20,16 +20,14 @@ type conn struct {
 }
 
 type mockTCPConn struct {
-	readCalled        bool
-	readCalledMu      *sync.Mutex
-	readErrorToReturn error
+	readCalled   bool
+	readCalledMu *sync.Mutex
 }
 
-func newFailingOnReadMockTCPConn(err error) *mockTCPConn {
+func newMockTCPConn() *mockTCPConn {
 	return &mockTCPConn{
-		readCalled:        false,
-		readCalledMu:      new(sync.Mutex),
-		readErrorToReturn: err,
+		readCalled:   false,
+		readCalledMu: new(sync.Mutex),
 	}
 }
 
@@ -37,10 +35,6 @@ func (c *mockTCPConn) Read(_ []byte) (n int, err error) {
 	c.readCalledMu.Lock()
 	defer c.readCalledMu.Unlock()
 	c.readCalled = true
-
-	if c.readErrorToReturn != nil {
-		return 0, c.readErrorToReturn
-	}
 
 	return 0, nil
 }
@@ -219,9 +213,12 @@ func TestDispatcher_Run(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			conn := newFailingOnReadMockTCPConn(errors.New("TCP conn blew up"))
+			runOnce := make(chan struct{}, 1)
+			runOnce <- struct{}{}
+			conn := newMockTCPConn()
 			dispatcher := redis.NewDispatcher(
 				func() (redis.TCPConn, error) {
+					<-runOnce
 					return conn, errors.New("no new connections left")
 				},
 				func() {},
