@@ -6,41 +6,35 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
-func TestEchoHandler_Command(t *testing.T) {
-	if got, want := (redis.EchoHandler{}).Command(), "ECHO"; got != want {
-		t.Errorf("Command() = %q, want %q", got, want)
-	}
-}
-
 func TestEchoHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name    string
-		args    redis.Array[redis.BulkString]
+		args    redis.BulkStringArray
 		want    redis.Value
 		wantErr redis.ErrorValue
 	}{
 		{
 			name:    "No arguments",
-			args:    redis.Array[redis.BulkString]{},
+			args:    redis.BulkStringArray{},
 			wantErr: redis.MakeBulkError("-ERR wrong number of arguments for 'echo' command"),
 		},
 		{
 			name: `"Hello, world"`,
-			args: redis.Array[redis.BulkString]{
+			args: redis.BulkStringArray{
 				redis.BulkString("Hello, world"),
 			},
 			want: redis.BulkString("Hello, world"),
 		},
 		{
 			name: `"It's dangerous to go alone! Take this."`,
-			args: redis.Array[redis.BulkString]{
+			args: redis.BulkStringArray{
 				redis.BulkString("It's dangerous to go alone! Take this."),
 			},
 			want: redis.BulkString("It's dangerous to go alone! Take this."),
 		},
 		{
 			name: "Two arguments",
-			args: redis.Array[redis.BulkString]{
+			args: redis.BulkStringArray{
 				redis.BulkString("foo"),
 				redis.BulkString("bar"),
 			},

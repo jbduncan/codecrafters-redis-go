@@ -133,7 +133,7 @@ func (s *RESP2Scanner) array() (Value, error) {
 		return nil, err
 	}
 
-	result := Array[Value]{}
+	result := Array{}
 	for range length {
 		element, err := s.arrayElement()
 		if err != nil {

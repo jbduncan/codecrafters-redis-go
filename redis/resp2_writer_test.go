@@ -67,7 +67,8 @@ func TestRESP2Writer_Write(t *testing.T) {
 					t.Fatalf("Write(): got err %q, want %q", err, tt.wantErr)
 				}
 				return
-			} else if err != nil {
+			}
+			if err != nil {
 				t.Fatalf("Write(): got err %q, want <nil> err", err)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {

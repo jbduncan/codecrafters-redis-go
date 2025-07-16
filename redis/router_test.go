@@ -9,7 +9,7 @@ import (
 func TestRouter_Route(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   redis.Value
+		input   redis.InputValue
 		want    redis.Value
 		wantErr redis.ErrorValue
 	}{
@@ -35,68 +35,63 @@ func TestRouter_Route(t *testing.T) {
 		},
 		{
 			name:  `[b"PING"]: s"PONG"`,
-			input: redis.Array[redis.BulkString]{"PING"},
+			input: redis.BulkStringArray{"PING"},
 			want:  redis.SimpleString("PONG"),
 		},
 		{
 			name:  `[b"ping"]: s"PONG"`,
-			input: redis.Array[redis.BulkString]{"PING"},
+			input: redis.BulkStringArray{"PING"},
 			want:  redis.SimpleString("PONG"),
 		},
 		{
 			name:  `[b"PING", b"Hello, world"]: b"Hello, world"`,
-			input: redis.Array[redis.BulkString]{"PING", "Hello, world"},
+			input: redis.BulkStringArray{"PING", "Hello, world"},
 			want:  redis.BulkString("Hello, world"),
 		},
 		{
 			name:  `[b"ECHO", b"Hello, world"]: b"Hello, world"`,
-			input: redis.Array[redis.BulkString]{"ECHO", "Hello, world"},
+			input: redis.BulkStringArray{"ECHO", "Hello, world"},
 			want:  redis.BulkString("Hello, world"),
 		},
 		{
 			name:  `[b"ECHO", b"Bye, world"]: b"Bye, world"`,
-			input: redis.Array[redis.BulkString]{"ECHO", "Bye, world"},
+			input: redis.BulkStringArray{"ECHO", "Bye, world"},
 			want:  redis.BulkString("Bye, world"),
 		},
 		{
 			name:  `[b"echo", b"Hello, world"]: b"Hello, world"`,
-			input: redis.Array[redis.BulkString]{"echo", "Hello, world"},
+			input: redis.BulkStringArray{"echo", "Hello, world"},
 			want:  redis.BulkString("Hello, world"),
 		},
 		{
 			name:    `[b"ECHO", b"Hello, world", b"Bye, world"]: error`,
-			input:   redis.Array[redis.BulkString]{"ECHO", "Hello, world", "Bye, world"},
+			input:   redis.BulkStringArray{"ECHO", "Hello, world", "Bye, world"},
 			wantErr: redis.MakeBulkError("-ERR wrong number of arguments for 'echo' command"),
 		},
 		{
 			name:    `[b"echo", b"Hello, world", b"Bye, world"]: error`,
-			input:   redis.Array[redis.BulkString]{"echo", "Hello, world", "Bye, world"},
+			input:   redis.BulkStringArray{"echo", "Hello, world", "Bye, world"},
 			wantErr: redis.MakeBulkError("-ERR wrong number of arguments for 'echo' command"),
 		},
 		{
 			name:    `[b"FOO"]: error`,
-			input:   redis.Array[redis.BulkString]{"FOO"},
+			input:   redis.BulkStringArray{"FOO"},
 			wantErr: redis.MakeBulkError("-ERR unknown command `FOO`"),
 		},
 		{
 			name:    `[b"BAR"]: error`,
-			input:   redis.Array[redis.BulkString]{"BAR"},
+			input:   redis.BulkStringArray{"BAR"},
 			wantErr: redis.MakeBulkError("-ERR unknown command `BAR`"),
 		},
 		{
 			name:    `[b""]: error`,
-			input:   redis.Array[redis.BulkString]{""},
+			input:   redis.BulkStringArray{""},
 			wantErr: redis.MakeBulkError("-ERR unknown command ``"),
 		},
 		{
 			name:    `[]: error`,
-			input:   redis.Array[redis.BulkString]{},
+			input:   redis.BulkStringArray{},
 			wantErr: redis.MakeBulkError("-ERR no command"),
-		},
-		{
-			name:    `1: error`,
-			input:   redis.Integer(1),
-			wantErr: redis.MakeBulkError("-ERR unknown type"),
 		},
 	}
 

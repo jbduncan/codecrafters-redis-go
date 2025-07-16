@@ -16,23 +16,35 @@ func NewRESP2Writer(w io.Writer) *RESP2Writer {
 	return rw
 }
 
-func (w RESP2Writer) Write(value Value) error {
-	var err error
+func (w *RESP2Writer) Write(value Value) error {
 	// TODO: other kinds of values from values.go
 	switch value.(type) {
-	case SimpleString:
-		_, err = w.writer.Write([]byte(fmt.Sprintf("+%s\r\n", value)))
 	case BulkString:
-		_, err = w.writer.Write([]byte(fmt.Sprintf(
-			"$%d\r\n%s\r\n",
-			len(value.(BulkString)),
-			value,
-		)))
+		// TODO: error
+		_ = w.writeBulkString(value)
 	case Integer:
-		_, err = w.writer.Write([]byte(fmt.Sprintf(":%d\r\n", value)))
-	}
-	if err != nil {
-		// TODO
+		// TODO: error
+		_ = w.writeInteger(value)
+	case SimpleString:
+		// TODO: error
+		_ = w.writeSimpleString(value)
 	}
 	return nil
+}
+
+func (w *RESP2Writer) writeBulkString(value Value) error {
+	s := string(value.(BulkString))
+	_, err := fmt.Fprintf(w.writer, "$%d\r\n%s\r\n", len(s), s)
+	return err
+}
+
+func (w *RESP2Writer) writeInteger(value Value) error {
+	_, err := fmt.Fprintf(w.writer, ":%d\r\n", value)
+	return err
+}
+
+func (w *RESP2Writer) writeSimpleString(value Value) error {
+	s := string(value.(SimpleString))
+	_, err := fmt.Fprintf(w.writer, "+%s\r\n", s)
+	return err
 }

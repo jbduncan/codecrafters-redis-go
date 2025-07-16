@@ -2,19 +2,14 @@ package redis
 
 import (
 	"fmt"
-	"strings"
 )
 
 type Handler interface {
-	Command() string
-	Handle(args Array[BulkString]) Value
+	Handle(args BulkStringArray) Value
 }
 
-func wrongNumberOfArgumentsError(h Handler) BulkError {
+func wrongNumberOfArgumentsError(cmd string) BulkError {
 	return MakeBulkError(
-		fmt.Sprintf(
-			"-ERR wrong number of arguments for '%s' command",
-			strings.ToLower(h.Command()),
-		),
+		fmt.Sprintf("-ERR wrong number of arguments for '%s' command", cmd),
 	)
 }

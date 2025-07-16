@@ -6,41 +6,35 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
-func TestPingHandler_Command(t *testing.T) {
-	if got, want := (redis.PingHandler{}).Command(), "PING"; got != want {
-		t.Errorf("Command() = %q, want %q", got, want)
-	}
-}
-
 func TestPingHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name    string
-		args    redis.Array[redis.BulkString]
+		args    redis.BulkStringArray
 		want    redis.Value
 		wantErr redis.ErrorValue
 	}{
 		{
 			name: "No arguments",
-			args: redis.Array[redis.BulkString]{},
+			args: redis.BulkStringArray{},
 			want: redis.SimpleString("PONG"),
 		},
 		{
 			name: `"Hello, world"`,
-			args: redis.Array[redis.BulkString]{
+			args: redis.BulkStringArray{
 				redis.BulkString("Hello, world"),
 			},
 			want: redis.BulkString("Hello, world"),
 		},
 		{
 			name: `"It's dangerous to go alone! Take this."`,
-			args: redis.Array[redis.BulkString]{
+			args: redis.BulkStringArray{
 				redis.BulkString("It's dangerous to go alone! Take this."),
 			},
 			want: redis.BulkString("It's dangerous to go alone! Take this."),
 		},
 		{
 			name: "Two arguments",
-			args: redis.Array[redis.BulkString]{
+			args: redis.BulkStringArray{
 				redis.BulkString("foo"),
 				redis.BulkString("bar"),
 			},
@@ -48,7 +42,7 @@ func TestPingHandler_Handle(t *testing.T) {
 		},
 		{
 			name: "Three arguments",
-			args: redis.Array[redis.BulkString]{
+			args: redis.BulkStringArray{
 				redis.BulkString("foo"),
 				redis.BulkString("bar"),
 				redis.BulkString("baz"),

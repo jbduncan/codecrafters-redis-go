@@ -6,6 +6,12 @@ type Value interface {
 	isValue()
 }
 
+type InputValue interface {
+	// isInputValue is a private method that enforces that only types in this
+	// package can implement InputValue.
+	isInputValue()
+}
+
 type ErrorValue interface {
 	error
 	Value
@@ -17,7 +23,12 @@ type SimpleString string
 
 // isValue implements Value.
 func (s SimpleString) isValue() {
-	unreachable()
+	unreachable[any]()
+}
+
+// isInputValue implements InputValue.
+func (s SimpleString) isInputValue() {
+	unreachable[any]()
 }
 
 type SimpleError struct {
@@ -32,7 +43,7 @@ func MakeSimpleError(message string) SimpleError {
 
 // isValue implements Value.
 func (e SimpleError) isValue() {
-	unreachable()
+	unreachable[any]()
 }
 
 // Error implements error.
@@ -49,35 +60,42 @@ type Integer int64
 
 // isValue implements Value.
 func (i Integer) isValue() {
-	unreachable()
+	unreachable[any]()
 }
 
 type BulkString string
 
 // isValue implements Value.
 func (s BulkString) isValue() {
-	unreachable()
+	unreachable[any]()
 }
 
 type NullBulkString struct{}
 
 // isValue implements Value.
 func (s NullBulkString) isValue() {
-	unreachable()
+	unreachable[any]()
 }
 
-type Array[T Value] []T
+type Array []Value
 
 // isValue implements Value.
-func (a Array[T]) isValue() {
-	unreachable()
+func (a Array) isValue() {
+	unreachable[any]()
+}
+
+type BulkStringArray []BulkString
+
+// isInputValue implements InputValue.
+func (a BulkStringArray) isInputValue() {
+	unreachable[any]()
 }
 
 type NullArray struct{}
 
 // isValue implements Value.
 func (s NullArray) isValue() {
-	unreachable()
+	unreachable[any]()
 }
 
 type BulkError struct {
@@ -92,7 +110,7 @@ func MakeBulkError(message string) BulkError {
 
 // isValue implements Value.
 func (e BulkError) isValue() {
-	unreachable()
+	unreachable[any]()
 }
 
 // Error implements error.

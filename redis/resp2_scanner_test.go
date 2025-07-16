@@ -70,47 +70,47 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:  "Empty array",
 			input: strings.NewReader("*0\r\n"),
-			want:  redis.Array[redis.Value]{},
+			want:  redis.Array{},
 		},
 		{
 			name:  "One element array with uppercase bulk string",
 			input: strings.NewReader("*1\r\n$4\r\nPING\r\n"),
-			want: redis.Array[redis.Value]{
+			want: redis.Array{
 				redis.BulkString("PING"),
 			},
 		},
 		{
 			name:  "One element array with lowercase bulk string",
 			input: strings.NewReader("*1\r\n$4\r\nping\r\n"),
-			want: redis.Array[redis.Value]{
+			want: redis.Array{
 				redis.BulkString("ping"),
 			},
 		},
 		{
 			name:  "One element array with some other bulk string",
 			input: strings.NewReader("*1\r\n$6\r\nFoobar\r\n"),
-			want: redis.Array[redis.Value]{
+			want: redis.Array{
 				redis.BulkString("Foobar"),
 			},
 		},
 		{
 			name:  "One element array with longer bulk string",
 			input: strings.NewReader("*1\r\n$10\r\nenumerable\r\n"),
-			want: redis.Array[redis.Value]{
+			want: redis.Array{
 				redis.BulkString("enumerable"),
 			},
 		},
 		{
 			name:  "One element array with bulk string with CR",
 			input: strings.NewReader("*1\r\n$1\r\n\r\r\n"),
-			want: redis.Array[redis.Value]{
+			want: redis.Array{
 				redis.BulkString("\r"),
 			},
 		},
 		{
 			name:  "One element array with bulk string with LF",
 			input: strings.NewReader("*1\r\n$1\r\n\n\r\n"),
-			want: redis.Array[redis.Value]{
+			want: redis.Array{
 				redis.BulkString("\n"),
 			},
 		},
@@ -223,7 +223,7 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 					"$1\r\nH\r\n" +
 					"$1\r\nI\r\n" +
 					"$1\r\nJ\r\n"),
-			want: redis.Array[redis.Value]{
+			want: redis.Array{
 				redis.BulkString("A"),
 				redis.BulkString("B"),
 				redis.BulkString("C"),
@@ -319,7 +319,8 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 					t.Fatalf("ScanAll(): got err %q, want %q", err, tt.wantErr)
 				}
 				return
-			} else if err != nil {
+			}
+			if err != nil {
 				t.Fatalf("ScanAll(): got err %q, want <nil> err", err)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
