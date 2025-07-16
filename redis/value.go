@@ -59,17 +59,10 @@ func (s BulkString) isValue() {
 	unreachable()
 }
 
-type RESP2NullBulkString struct{}
+type NullBulkString struct{}
 
 // isValue implements Value.
-func (s RESP2NullBulkString) isValue() {
-	unreachable()
-}
-
-type RESP2NullArray struct{}
-
-// isValue implements Value.
-func (s RESP2NullArray) isValue() {
+func (s NullBulkString) isValue() {
 	unreachable()
 }
 
@@ -77,6 +70,13 @@ type Array[T Value] []T
 
 // isValue implements Value.
 func (a Array[T]) isValue() {
+	unreachable()
+}
+
+type NullArray struct{}
+
+// isValue implements Value.
+func (s NullArray) isValue() {
 	unreachable()
 }
 
