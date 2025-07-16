@@ -33,19 +33,20 @@ func NewRESP2Scanner(r io.Reader) *RESP2Scanner {
 	return s
 }
 
-// ScanAll returns an iterator that loops over all [redis.Value] instances from
-// the underlying reader.
+// ScanAll returns an iterator that loops over all [redis.InputValue] instances
+// from the underlying reader.
 //
 // If the next value is not valid syntax according to the Redis RESP2 protocol,
 // then the iterator returns an error of type redis.ErrorValue, suitable for
-// sending back to the client via redis.Writer.Write.
+// sending back to the client via redis.RESP2Writer.
 //
 // If any other sort of error occurred, then the iterator returns a generic
 // error.
 //
-// If any sort of error is returned, then the iterator will stop.
-func (s *RESP2Scanner) ScanAll() iter.Seq2[Value, error] {
-	return func(yield func(Value, error) bool) {
+// If any sort of error is returned, including redis.ErrorValue instances and
+// generic errors, then the iterator will stop.
+func (s *RESP2Scanner) ScanAll() iter.Seq2[InputValue, error] {
+	return func(yield func(InputValue, error) bool) {
 		for {
 			value, err := s.scan()
 			if errors.Is(err, io.EOF) {
@@ -62,14 +63,14 @@ func (s *RESP2Scanner) ScanAll() iter.Seq2[Value, error] {
 	}
 }
 
-func (s *RESP2Scanner) scan() (Value, error) {
+func (s *RESP2Scanner) scan() (InputValue, error) {
 	typ, err := s.advanceFirstByte()
 	if err != nil {
 		// This returns io.EOF if there is no more input to process.
 		return nil, err
 	}
 
-	var value Value
+	var value InputValue
 	switch typ {
 	case arrayType:
 		value, err = s.array()
@@ -82,58 +83,58 @@ func (s *RESP2Scanner) scan() (Value, error) {
 	return value, err
 }
 
-func (s *RESP2Scanner) arrayElement() (Value, error) {
+func (s *RESP2Scanner) arrayElement() (BulkString, error) {
 	typ, err := s.advanceFirstByte()
 	if errors.Is(err, io.EOF) {
-		return nil, incompleteRequestError
+		return "", incompleteRequestError
 	}
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	var value Value
+	var value BulkString
 	switch typ {
 	case bulkStringType:
 		value, err = s.bulkString()
 	default:
-		return nil, s.expectedGotError("'$'", typ)
+		return "", s.expectedGotError("'$'", typ)
 	}
 
 	s.resetToken()
 	return value, err
 }
 
-func (s *RESP2Scanner) bulkString() (Value, error) {
+func (s *RESP2Scanner) bulkString() (BulkString, error) {
 	length, err := s.unsignedInt()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	for range length {
 		char, err := s.advance()
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		s.addToToken(char)
 	}
 
 	if err := s.consumeCR(); err != nil {
-		return nil, err
+		return "", err
 	}
 	if err := s.consumeLF(); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	return BulkString(s.token()), nil
 }
 
-func (s *RESP2Scanner) array() (Value, error) {
+func (s *RESP2Scanner) array() (BulkStringArray, error) {
 	length, err := s.unsignedInt()
 	if err != nil {
 		return nil, err
 	}
 
-	result := Array{}
+	result := BulkStringArray{}
 	for range length {
 		element, err := s.arrayElement()
 		if err != nil {
@@ -146,11 +147,11 @@ func (s *RESP2Scanner) array() (Value, error) {
 	return result, nil
 }
 
-func (s *RESP2Scanner) simpleString() (Value, error) {
+func (s *RESP2Scanner) simpleString() (SimpleString, error) {
 	for {
 		char, err := s.advance()
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
 		if !s.isCR(char) {
@@ -159,7 +160,7 @@ func (s *RESP2Scanner) simpleString() (Value, error) {
 		}
 
 		if err := s.consumeLF(); err != nil {
-			return nil, err
+			return "", err
 		}
 
 		return SimpleString(s.token()), nil

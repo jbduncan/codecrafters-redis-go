@@ -16,7 +16,10 @@ var (
 	badReader = iotest.ErrReader(errors.New("ganondorf stole the triforce"))
 )
 
-func iterSeq2Pull(t *testing.T, values iter.Seq2[redis.Value, error]) func() (redis.Value, error, bool) {
+func iterSeq2Pull(
+	t *testing.T,
+	values iter.Seq2[redis.InputValue, error],
+) func() (redis.InputValue, error, bool) {
 	next, stop := iter.Pull2(values)
 	t.Cleanup(stop)
 	return next
@@ -28,7 +31,7 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          io.Reader
-		want           redis.Value
+		want           redis.InputValue
 		wantErr        error
 		wantGenericErr bool
 	}{
@@ -70,48 +73,48 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:  "Empty array",
 			input: strings.NewReader("*0\r\n"),
-			want:  redis.Array{},
+			want:  redis.BulkStringArray{},
 		},
 		{
 			name:  "One element array with uppercase bulk string",
 			input: strings.NewReader("*1\r\n$4\r\nPING\r\n"),
-			want: redis.Array{
-				redis.BulkString("PING"),
+			want: redis.BulkStringArray{
+				"PING",
 			},
 		},
 		{
 			name:  "One element array with lowercase bulk string",
 			input: strings.NewReader("*1\r\n$4\r\nping\r\n"),
-			want: redis.Array{
-				redis.BulkString("ping"),
+			want: redis.BulkStringArray{
+				"ping",
 			},
 		},
 		{
 			name:  "One element array with some other bulk string",
 			input: strings.NewReader("*1\r\n$6\r\nFoobar\r\n"),
-			want: redis.Array{
-				redis.BulkString("Foobar"),
+			want: redis.BulkStringArray{
+				"Foobar",
 			},
 		},
 		{
 			name:  "One element array with longer bulk string",
 			input: strings.NewReader("*1\r\n$10\r\nenumerable\r\n"),
-			want: redis.Array{
-				redis.BulkString("enumerable"),
+			want: redis.BulkStringArray{
+				"enumerable",
 			},
 		},
 		{
 			name:  "One element array with bulk string with CR",
 			input: strings.NewReader("*1\r\n$1\r\n\r\r\n"),
-			want: redis.Array{
-				redis.BulkString("\r"),
+			want: redis.BulkStringArray{
+				"\r",
 			},
 		},
 		{
 			name:  "One element array with bulk string with LF",
 			input: strings.NewReader("*1\r\n$1\r\n\n\r\n"),
-			want: redis.Array{
-				redis.BulkString("\n"),
+			want: redis.BulkStringArray{
+				"\n",
 			},
 		},
 		{
@@ -223,17 +226,17 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 					"$1\r\nH\r\n" +
 					"$1\r\nI\r\n" +
 					"$1\r\nJ\r\n"),
-			want: redis.Array{
-				redis.BulkString("A"),
-				redis.BulkString("B"),
-				redis.BulkString("C"),
-				redis.BulkString("D"),
-				redis.BulkString("E"),
-				redis.BulkString("F"),
-				redis.BulkString("G"),
-				redis.BulkString("H"),
-				redis.BulkString("I"),
-				redis.BulkString("J"),
+			want: redis.BulkStringArray{
+				"A",
+				"B",
+				"C",
+				"D",
+				"E",
+				"F",
+				"G",
+				"H",
+				"I",
+				"J",
 			},
 		},
 		{
