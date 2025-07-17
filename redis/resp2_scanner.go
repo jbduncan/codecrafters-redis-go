@@ -36,15 +36,18 @@ func NewRESP2Scanner(r io.Reader) *RESP2Scanner {
 // ScanAll returns an iterator that loops over all [redis.InputValue] instances
 // from the underlying reader.
 //
-// If the next value is not valid syntax according to the Redis RESP2 protocol,
-// then the iterator returns an error of type redis.ErrorValue, suitable for
-// sending back to the client via redis.RESP2Writer.
+// If the next value is not valid syntax according to the
+// [Redis RESP2 protocol], then the iterator returns an error of type
+// redis.ErrorValue, suitable for sending back to the client via
+// [redis.RESP2Writer.Write].
 //
 // If any other sort of error occurred, then the iterator returns a generic
 // error.
 //
 // If any sort of error is returned, including redis.ErrorValue instances and
 // generic errors, then the iterator will stop.
+//
+// [Redis RESP2 protocol]: https://redis.io/docs/latest/develop/reference/protocol-spec
 func (s *RESP2Scanner) ScanAll() iter.Seq2[InputValue, error] {
 	return func(yield func(InputValue, error) bool) {
 		for {
