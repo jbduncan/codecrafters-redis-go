@@ -13,7 +13,8 @@ import (
 )
 
 var (
-	badReader = iotest.ErrReader(errors.New("ganondorf stole the triforce"))
+	badError  = errors.New("ganondorf stole the triforce")
+	badReader = iotest.ErrReader(badError)
 )
 
 func iterSeq2Pull(
@@ -33,7 +34,7 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		input          io.Reader
 		want           redis.InputValue
 		wantErr        error
-		wantGenericErr bool
+		wantGenericErr error
 	}{
 		{
 			name:  "Uppercase simple string",
@@ -68,7 +69,7 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:           "Simple string that returns error on LF",
 			input:          io.MultiReader(strings.NewReader("PING\r"), badReader),
-			wantGenericErr: true,
+			wantGenericErr: badError,
 		},
 		{
 			name:  "Empty array",
@@ -195,17 +196,17 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:           "One element array with bulk string that returns error on first digit",
 			input:          io.MultiReader(strings.NewReader("*1\r\n$"), badReader),
-			wantGenericErr: true,
+			wantGenericErr: badError,
 		},
 		{
 			name:           "One element array with bulk string that returns error on first CR",
 			input:          io.MultiReader(strings.NewReader("*1\r\n$1"), badReader),
-			wantGenericErr: true,
+			wantGenericErr: badError,
 		},
 		{
 			name:           "One element array with bulk string that returns error on first payload byte",
 			input:          io.MultiReader(strings.NewReader("*1\r\n$1\r\n"), badReader),
-			wantGenericErr: true,
+			wantGenericErr: badError,
 		},
 		{
 			name:    "One element array with bulk string of negative length",
@@ -287,7 +288,7 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:           "Error-returning input",
 			input:          badReader,
-			wantGenericErr: true,
+			wantGenericErr: badError,
 		},
 	}
 	for _, tt := range tests {
@@ -302,17 +303,12 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 			if !ok {
 				t.Fatalf("ScanAll(): got zero elements, want one element")
 			}
-			if tt.wantGenericErr {
-				if err == nil {
+			if tt.wantGenericErr != nil {
+				if !errors.Is(err, tt.wantGenericErr) {
 					t.Fatalf(
-						"ScanAll(): got a <nil> error, want a non-nil error",
-					)
-				}
-				if _, ok := err.(redis.Value); ok {
-					t.Fatalf(
-						"ScanAll(): got err %q, want a generic error that is "+
-							"not a redis.Value",
+						"ScanAll(): got generic err %q, want %q",
 						err,
+						tt.wantGenericErr,
 					)
 				}
 				return

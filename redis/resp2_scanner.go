@@ -335,7 +335,7 @@ func (s *RESP2Scanner) peek() (byte, error) {
 }
 
 func (s *RESP2Scanner) wrapAsInternalScannerError(cause error) error {
-	return fmt.Errorf("internal scanner error: %v", cause)
+	return fmt.Errorf("internal RESP2Scanner error: %w", cause)
 }
 
 func (s *RESP2Scanner) expectedGotError(expected string, got byte) error {
