@@ -17,33 +17,25 @@ func NewRESP2Writer(w io.Writer) *RESP2Writer {
 }
 
 func (w *RESP2Writer) Write(value Value) error {
-	// TODO: other kinds of values from value.go
 	switch value.(type) {
 	case Array:
 		return w.writeArray(value)
 	case BulkError:
-		// TODO: error
-		_ = w.writeBulkError(value)
+		return w.writeBulkError(value)
 	case BulkString:
-		// TODO: error
-		_ = w.writeBulkString(value)
+		return w.writeBulkString(value)
 	case Integer:
-		// TODO: error
-		_ = w.writeInteger(value)
+		return w.writeInteger(value)
 	case NullArray:
-		// TODO: error
-		_ = w.writeNullArray()
+		return w.writeNullArray()
 	case NullBulkString:
-		// TODO: error
-		_ = w.writeNullBulkString()
+		return w.writeNullBulkString()
 	case SimpleError:
-		// TODO: error
-		_ = w.writeSimpleError(value)
+		return w.writeSimpleError(value)
 	case SimpleString:
 		return w.writeSimpleString(value)
 	}
-	// TODO: use `return unreachable[error]()`
-	return nil
+	return unreachable[error]()
 }
 
 func (w *RESP2Writer) writeArray(value Value) error {

@@ -144,8 +144,38 @@ func TestRESP2Writer_Write(t *testing.T) {
 			byteIndexToReturnErrorAt: 4,
 		},
 		{
+			name:                     "Error on writing null array",
+			input:                    redis.NullArray{},
+			byteIndexToReturnErrorAt: 0,
+		},
+		{
 			name:                     "Error on writing simple string",
 			input:                    redis.SimpleString("FOO"),
+			byteIndexToReturnErrorAt: 0,
+		},
+		{
+			name:                     "Error on writing bulk string",
+			input:                    redis.BulkString("FOO"),
+			byteIndexToReturnErrorAt: 0,
+		},
+		{
+			name:                     "Error on writing null bulk string",
+			input:                    redis.NullBulkString{},
+			byteIndexToReturnErrorAt: 0,
+		},
+		{
+			name:                     "Error on writing integer",
+			input:                    redis.Integer(0),
+			byteIndexToReturnErrorAt: 0,
+		},
+		{
+			name:                     "Error on writing simple error",
+			input:                    redis.MakeSimpleError("ERR foo"),
+			byteIndexToReturnErrorAt: 0,
+		},
+		{
+			name:                     "Error on writing bulk error",
+			input:                    redis.MakeBulkError("ERR foo"),
 			byteIndexToReturnErrorAt: 0,
 		},
 	} {
@@ -166,6 +196,15 @@ func TestRESP2Writer_Write(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Panic on nil value", func(t *testing.T) {
+		t.Parallel()
+
+		defer func() { _ = recover() }()
+		_ = redis.NewRESP2Writer(io.Discard).Write(nil)
+
+		t.Errorf(`Write(): should have panicked`)
+	})
 }
 
 // Based on: https://github.com/golang/go/issues/54111#issuecomment-1220793565

@@ -1,6 +1,12 @@
+[hooks]
+enter = "mise i -q"
+
 [settings]
 experimental = true
 lockfile = true
+status.missing_tools = "always"
+status.show_env = true
+status.show_tools = true
 
 [tools]
 go = "latest"
