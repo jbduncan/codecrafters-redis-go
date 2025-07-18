@@ -4,41 +4,36 @@ package integration_test
 
 import (
 	"io"
+	"net"
 	"strings"
-	"sync"
 	"testing"
-)
 
-const (
-	pingLowercase = "*1\r\n$4\r\nping\r\n"
-	pingUppercase = "*1\r\n$4\r\nPING\r\n"
-	pong          = "+PONG\r\n"
+	"github.com/codecrafters-io/redis-starter-go/iox"
+	"github.com/codecrafters-io/redis-starter-go/redis/redistest"
 )
 
 func TestPing(t *testing.T) {
-
-	tests := []struct {
+	for _, tt := range []struct {
 		name     string
 		request  string
 		response string
 	}{
 		{
 			name:     "PING: lowercase array request",
-			request:  pingLowercase,
-			response: pong,
+			request:  redistest.PingLowercase,
+			response: redistest.Pong,
 		},
 		{
 			name:     "PING: uppercase array request",
-			request:  pingUppercase,
-			response: pong,
+			request:  redistest.PingUppercase,
+			response: redistest.Pong,
 		},
 		{
 			name:     "three PINGs: three pipelined simple requests",
-			request:  strings.Repeat(pingLowercase, 3),
-			response: strings.Repeat(pong, 3),
+			request:  strings.Repeat(redistest.PingLowercase, 3),
+			response: strings.Repeat(redistest.Pong, 3),
 		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			runServer(t)
 			conn := mustDialServer(t)
@@ -47,7 +42,7 @@ func TestPing(t *testing.T) {
 				t.Fatalf("request %q not sent: %v", tt.request, err)
 			}
 
-			got, err := readResponse(conn, len(tt.response))
+			got, err := iox.ReadExactly(conn, len(tt.response))
 			if err != nil {
 				t.Errorf("response not read: %v", err)
 			}
@@ -75,47 +70,12 @@ func TestPing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			runServer(t)
 
-			var countDownLatch sync.WaitGroup
-			countDownLatch.Add(tt.concurrentPings)
-			var allSuccessful sync.WaitGroup
-			allSuccessful.Add(tt.concurrentPings)
-			errCh := make(chan struct{})
-
-			for range tt.concurrentPings {
-				go func() {
-					conn := mustDialServer(t)
-
-					countDownLatch.Done()
-					countDownLatch.Wait()
-
-					if _, err := io.WriteString(conn, pingLowercase); err != nil {
-						t.Errorf("request %q not sent: %v", pingLowercase, err)
-						errCh <- struct{}{}
-						return
-					}
-
-					got, err := readResponse(conn, len(pong))
-					if err != nil {
-						t.Errorf("response not read: %v", err)
-						errCh <- struct{}{}
-					}
-					if got != pong {
-						t.Errorf(
-							`PING request: got response %q, want %q`, got, pong,
-						)
-						errCh <- struct{}{}
-					}
-
-					allSuccessful.Done()
-				}()
-			}
-
-			select {
-			case <-errCh:
-				t.FailNow()
-			case <-doneChan(&allSuccessful):
-				// Test has passed
-			}
+			redistest.TestConcurrentPings(
+				t,
+				tt.concurrentPings,
+				func() net.Conn {
+					return mustDialServer(t)
+				})
 		})
 	}
 }

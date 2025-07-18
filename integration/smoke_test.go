@@ -9,25 +9,28 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/codecrafters-io/redis-starter-go/iox"
+	"github.com/codecrafters-io/redis-starter-go/redis/redistest"
 )
 
 func TestSmoke(t *testing.T) {
 	runServerBinary(t)
 	conn := mustDialServer(t)
 
-	if _, err := io.WriteString(conn, pingLowercase); err != nil {
+	if _, err := io.WriteString(conn, redistest.PingLowercase); err != nil {
 		t.Fatalf(
 			"did not write message %q successfully: %v",
-			pingLowercase,
+			redistest.PingLowercase,
 			err,
 		)
 	}
 
-	got, err := readResponse(conn, len(pong))
+	got, err := iox.ReadExactly(conn, len(redistest.Pong))
 	if err != nil {
 		t.Errorf("did not read conn successfully: %v", err)
 	}
-	want := pong
+	want := redistest.Pong
 	if got != want {
 		t.Errorf(
 			`PING request: got response %q, want %q`, got, want,

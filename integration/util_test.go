@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
@@ -64,27 +63,8 @@ func mustDialServer(t *testing.T) net.Conn {
 	return conn
 }
 
-func doneChan(wg *sync.WaitGroup) chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		done <- struct{}{}
-	}()
-	return done
-}
-
-func readResponse(conn net.Conn, responseLength int) (string, error) {
-	gotBytes := make([]byte, responseLength)
-	if _, err := io.ReadFull(conn, gotBytes); err != nil {
-		return "", err
-	}
-	got := string(gotBytes)
-	return got, nil
-}
-
 func loggingClose(t *testing.T, closer io.Closer) {
-	err := closer.Close()
-	if err != nil {
+	if err := closer.Close(); err != nil {
 		t.Log(err)
 	}
 }

@@ -15,10 +15,10 @@ type event struct {
 }
 
 type Dispatcher struct {
-	acceptTCPConn TCPConnAccepter
-	close         func()
-	quit          chan struct{}
-	events        chan event
+	tcpConnAccepter TCPConnAccepter
+	close           func()
+	quit            chan struct{}
+	events          chan event
 }
 
 // TODO: consider merging these two parameters together into an interface to
@@ -26,17 +26,17 @@ type Dispatcher struct {
 
 func NewDispatcher(tcpConnAccepter TCPConnAccepter, close func()) *Dispatcher {
 	return &Dispatcher{
-		acceptTCPConn: tcpConnAccepter,
-		close:         close,
-		quit:          make(chan struct{}),
-		events:        make(chan event, 512),
+		tcpConnAccepter: tcpConnAccepter,
+		close:           close,
+		quit:            make(chan struct{}),
+		events:          make(chan event, 512),
 	}
 }
 
 func (d *Dispatcher) Run() {
 	go func() {
 		for {
-			tcpConn, err := d.acceptTCPConn()
+			tcpConn, err := d.tcpConnAccepter()
 
 			if err != nil {
 				select {
