@@ -42,6 +42,7 @@ func (w *RESP2Writer) Write(value Value) error {
 	case SimpleString:
 		return w.writeSimpleString(value)
 	}
+	// TODO: use `return unreachable[error]()`
 	return nil
 }
 

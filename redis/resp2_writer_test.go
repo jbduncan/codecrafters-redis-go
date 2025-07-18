@@ -13,7 +13,7 @@ import (
 func TestRESP2Writer_Write(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	for _, tt := range []struct {
 		name  string
 		input redis.Value
 		want  string
@@ -111,8 +111,7 @@ func TestRESP2Writer_Write(t *testing.T) {
 			input: redis.NullArray{},
 			want:  "*-1\r\n",
 		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -129,44 +128,44 @@ func TestRESP2Writer_Write(t *testing.T) {
 		})
 	}
 
-	t.Run("Error on writing array length", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range []struct {
+		name                     string
+		input                    redis.Value
+		byteIndexToReturnErrorAt int64
+	}{
+		{
+			name:                     "Error on writing array length",
+			input:                    redis.Array{},
+			byteIndexToReturnErrorAt: 0,
+		},
+		{
+			name:                     "Error on writing array element",
+			input:                    redis.Array{redis.Array{}},
+			byteIndexToReturnErrorAt: 4,
+		},
+		{
+			name:                     "Error on writing simple string",
+			input:                    redis.SimpleString("FOO"),
+			byteIndexToReturnErrorAt: 0,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		wantErr := errors.New("ganondorf stole the triforce")
-		writer := &limitedWriter{w: io.Discard, n: 0, e: wantErr}
+			wantErr := errors.New("ganondorf stole the triforce")
+			writer := &limitedWriter{
+				w: io.Discard,
+				n: tt.byteIndexToReturnErrorAt,
+				e: wantErr,
+			}
 
-		gotErr := redis.NewRESP2Writer(writer).Write(redis.Array{})
+			gotErr := redis.NewRESP2Writer(writer).Write(tt.input)
 
-		if !errors.Is(gotErr, wantErr) {
-			t.Errorf("Write(): got err %q, want %q", gotErr, wantErr)
-		}
-	})
-
-	t.Run("Error on writing array element", func(t *testing.T) {
-		t.Parallel()
-
-		wantErr := errors.New("ganondorf stole the triforce")
-		writer := &limitedWriter{w: io.Discard, n: 4, e: wantErr}
-
-		gotErr := redis.NewRESP2Writer(writer).Write(redis.Array{redis.Array{}})
-
-		if !errors.Is(gotErr, wantErr) {
-			t.Errorf("Write(): got err %q, want %q", gotErr, wantErr)
-		}
-	})
-
-	t.Run("Error on writing simple string", func(t *testing.T) {
-		t.Parallel()
-
-		wantErr := errors.New("ganondorf stole the triforce")
-		writer := &limitedWriter{w: io.Discard, n: 0, e: wantErr}
-
-		gotErr := redis.NewRESP2Writer(writer).Write(redis.SimpleString("FOO"))
-
-		if !errors.Is(gotErr, wantErr) {
-			t.Errorf("Write(): got err %q, want %q", gotErr, wantErr)
-		}
-	})
+			if !errors.Is(gotErr, wantErr) {
+				t.Errorf("Write(): got err %q, want %q", gotErr, wantErr)
+			}
+		})
+	}
 }
 
 // Based on: https://github.com/golang/go/issues/54111#issuecomment-1220793565
