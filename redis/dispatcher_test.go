@@ -1,7 +1,6 @@
 package redis_test
 
 import (
-	"bufio"
 	"errors"
 	"io"
 	"net"
@@ -61,24 +60,16 @@ func netPipe() (net.Conn, net.Conn) {
 	return a, b
 }
 
+const (
+	pingLowercase = "*1\r\n$4\r\nping\r\n"
+	pingUppercase = "*1\r\n$4\r\nPING\r\n"
+	pong          = "+PONG\r\n"
+)
+
 func TestDispatcher_Run(t *testing.T) {
 	t.Parallel()
 
-	// TODO: introduce Router to determine which of various Handlers to call for a
-	//  given redis.Value. These Handlers would include PingHandler and
-	//  EchoHandler. The Handlers would return redis.Value instances back
-	//  to the Router, which would itself return those values back.
-	//
-	// TODO: introduce a RESPEncoder that can turn redis.Values into RESP responses
-	//  and write them back to the TCP connection.
-	//
-	// TODO: wire these together in Dispatcher.
-
-	const (
-		lowercasePing = "*1\r\n$4\r\nping\r\n"
-		uppercasePing = "*1\r\n$4\r\nPING\r\n"
-		pong          = "+PONG\r\n"
-	)
+	// TODO: wire everything together in Dispatcher
 
 	tests := []struct {
 		name     string
@@ -86,18 +77,18 @@ func TestDispatcher_Run(t *testing.T) {
 		response string
 	}{
 		{
-			name:     "PING: lowercase request",
-			request:  lowercasePing,
+			name:     "PING: lowercase array request",
+			request:  pingLowercase,
 			response: pong,
 		},
 		{
-			name:     "PING: uppercase request",
-			request:  uppercasePing,
+			name:     "PING: uppercase array request",
+			request:  pingUppercase,
 			response: pong,
 		},
 		{
-			name:     "three PINGs: three pipelined requests",
-			request:  strings.Repeat(uppercasePing, 3),
+			name:     "three PINGs: three pipelined simple requests",
+			request:  strings.Repeat(pingLowercase, 3),
 			response: strings.Repeat(pong, 3),
 		},
 	}
@@ -123,19 +114,17 @@ func TestDispatcher_Run(t *testing.T) {
 				},
 				func() {},
 			)
-
 			go dispatcher.Run()
+			t.Cleanup(dispatcher.Stop)
 			if _, err := io.WriteString(clientConn, tt.request); err != nil {
-				t.Fatalf("request not sent through clientConn: %v", err)
+				t.Fatalf("request %q not sent: %v", tt.request, err)
 			}
 
-			resp := make([]byte, len(tt.response))
-			_, err := io.ReadFull(clientConn, resp)
+			got, err := readResponse(clientConn, len(tt.response))
 			if err != nil {
-				t.Fatalf("resp not read: %v", err)
+				t.Fatalf("response not read: %v", err)
 			}
-
-			if got, want := string(resp), tt.response; got != want {
+			if want := tt.response; got != want {
 				t.Errorf(
 					`Dispatcher.Run(): PING request: got response %q, want %q`,
 					got,
@@ -145,90 +134,116 @@ func TestDispatcher_Run(t *testing.T) {
 		})
 	}
 
-	t.Run("two PINGS: two concurrent requests", func(t *testing.T) {
-		t.Parallel()
-
-		serverConns := make(chan *conn, 3)
-		clientConn1, serverConn1 := netPipe()
-		clientConn2, serverConn2 := netPipe()
-		serverConns <- &conn{
-			tcpConn: serverConn1,
-		}
-		serverConns <- &conn{
-			tcpConn: serverConn2,
-		}
-		serverConns <- &conn{
-			err: errors.New("no new connections left"),
-		}
-
-		dispatcher := redis.NewDispatcher(
-			func() (redis.TCPConn, error) {
-				// This will eventually block to stop Dispatcher's inner loop
-				// from looping forever.
-				c := <-serverConns
-				return c.tcpConn, c.err
-			},
-			func() {},
-		)
-
-		go dispatcher.Run()
-		if _, err := io.WriteString(clientConn1, "PING\r\n"); err != nil {
-			t.Fatalf("request not sent through clientConn: %v", err)
-		}
-		if _, err := io.WriteString(clientConn2, "PING\r\n"); err != nil {
-			t.Fatalf("request not sent through clientConn: %v", err)
-		}
-
-		type resp struct {
-			s   string
-			err error
-		}
-		resps := make(chan resp)
-		go func() {
-			r, err := bufio.NewReader(clientConn1).ReadString('\n')
-			resps <- resp{s: r, err: err}
-		}()
-		go func() {
-			r, err := bufio.NewReader(clientConn2).ReadString('\n')
-			resps <- resp{s: r, err: err}
-		}()
-		for range 2 {
-			r := <-resps
-			if r.err != nil {
-				t.Fatalf("resp not read: %v", r.err)
-			}
-			if got, want := r.s, pong; got != want {
-				t.Errorf(
-					`Dispatcher.Run(): PING request: got response %q, want %q`,
-					got,
-					want,
-				)
-			}
-		}
-	})
-
-	t.Run(
-		"edge case: when acceptTCPConn returns error, then no attempt to "+
-			"read the conn is made",
-		func(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		concurrentPings int
+	}{
+		{
+			name:            "two concurrent PINGs",
+			concurrentPings: 2,
+		},
+		{
+			name:            "1,000 concurrent PINGs",
+			concurrentPings: 1_000,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			runOnce := make(chan struct{}, 1)
-			runOnce <- struct{}{}
-			conn := newMockTCPConn()
+			serverConns := make(chan *conn, tt.concurrentPings)
+			clientConns := make(chan net.Conn, tt.concurrentPings)
+			for range tt.concurrentPings {
+				clientConn, serverConn := netPipe()
+				serverConns <- &conn{
+					tcpConn: serverConn,
+				}
+				clientConns <- clientConn
+			}
+
 			dispatcher := redis.NewDispatcher(
 				func() (redis.TCPConn, error) {
-					<-runOnce
-					return conn, errors.New("no new connections left")
+					// This will eventually block to stop Dispatcher's inner loop
+					// from looping forever.
+					c := <-serverConns
+					return c.tcpConn, c.err
 				},
 				func() {},
 			)
-
 			go dispatcher.Run()
+			t.Cleanup(dispatcher.Stop)
+
+			var countDownLatch sync.WaitGroup
+			countDownLatch.Add(tt.concurrentPings)
+			var allSuccessful sync.WaitGroup
+			allSuccessful.Add(tt.concurrentPings)
+			errCh := make(chan struct{})
+
+			for range tt.concurrentPings {
+				go func() {
+					conn := <-clientConns
+
+					countDownLatch.Done()
+					countDownLatch.Wait()
+
+					if _, err := io.WriteString(conn, pingLowercase); err != nil {
+						t.Errorf("request %q not sent: %v", pingLowercase, err)
+						errCh <- struct{}{}
+						return
+					}
+
+					got, err := readResponse(conn, len(pong))
+					if err != nil {
+						t.Errorf("response not read: %v", err)
+						errCh <- struct{}{}
+					}
+					if got != pong {
+						t.Errorf(
+							`PING request: got response %q, want %q`, got, pong,
+						)
+						errCh <- struct{}{}
+					}
+
+					allSuccessful.Done()
+				}()
+			}
+
+			select {
+			case <-errCh:
+				t.FailNow()
+			case <-doneChan(&allSuccessful):
+				// Test has passed
+			}
+		})
+	}
+
+	t.Run(
+		"edge case: when acceptTCPConn returns error, then conn is not read",
+		func(t *testing.T) {
+			t.Parallel()
+
+			mockConn := newMockTCPConn()
+			serverConns := make(chan conn, 1)
+			serverConns <- conn{
+				tcpConn: mockConn,
+				err:     errors.New("no new connections left"),
+			}
+
+			dispatcher := redis.NewDispatcher(
+				func() (redis.TCPConn, error) {
+					// This will eventually block to stop Dispatcher's inner
+					// loop from looping forever.
+					c := <-serverConns
+					return c.tcpConn, c.err
+				},
+				func() {},
+			)
+			// This will panic if the nil connection is read
+			go dispatcher.Run()
+			t.Cleanup(dispatcher.Stop)
 
 			if !repeat.Whilst(
 				func() bool {
-					return !conn.ReadCalled()
+					return !mockConn.ReadCalled()
 				},
 				3*time.Second,
 				100*time.Millisecond,
@@ -239,4 +254,22 @@ func TestDispatcher_Run(t *testing.T) {
 				)
 			}
 		})
+}
+
+func doneChan(wg *sync.WaitGroup) chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		done <- struct{}{}
+	}()
+	return done
+}
+
+func readResponse(conn net.Conn, responseLength int) (string, error) {
+	gotBytes := make([]byte, responseLength)
+	if _, err := io.ReadFull(conn, gotBytes); err != nil {
+		return "", err
+	}
+	got := string(gotBytes)
+	return got, nil
 }

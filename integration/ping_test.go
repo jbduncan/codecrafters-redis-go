@@ -10,12 +10,13 @@ import (
 )
 
 const (
-	pong          = "+PONG\r\n"
 	pingLowercase = "*1\r\n$4\r\nping\r\n"
 	pingUppercase = "*1\r\n$4\r\nPING\r\n"
+	pong          = "+PONG\r\n"
 )
 
 func TestPing(t *testing.T) {
+
 	tests := []struct {
 		name     string
 		request  string
@@ -43,19 +44,14 @@ func TestPing(t *testing.T) {
 			conn := mustDialServer(t)
 
 			if _, err := io.WriteString(conn, tt.request); err != nil {
-				t.Fatalf(
-					"did not write message %q successfully: %v",
-					tt.request,
-					err,
-				)
+				t.Fatalf("request %q not sent: %v", tt.request, err)
 			}
 
 			got, err := readResponse(conn, len(tt.response))
 			if err != nil {
-				t.Errorf("did not read conn successfully: %v", err)
+				t.Errorf("response not read: %v", err)
 			}
-			want := tt.response
-			if got != want {
+			if want := tt.response; got != want {
 				t.Errorf(
 					`PING request: got response %q, want %q`, got, want,
 				)
@@ -68,11 +64,11 @@ func TestPing(t *testing.T) {
 		concurrentPings int
 	}{
 		{
-			name:            "two concurrent pings",
+			name:            "two concurrent PINGs",
 			concurrentPings: 2,
 		},
 		{
-			name:            "1,000 concurrent pings",
+			name:            "1,000 concurrent PINGs",
 			concurrentPings: 1_000,
 		},
 	} {
@@ -93,18 +89,14 @@ func TestPing(t *testing.T) {
 					countDownLatch.Wait()
 
 					if _, err := io.WriteString(conn, pingLowercase); err != nil {
-						t.Errorf(
-							`did not write message %q successfully: %v`,
-							pingLowercase,
-							err,
-						)
+						t.Errorf("request %q not sent: %v", pingLowercase, err)
 						errCh <- struct{}{}
 						return
 					}
 
 					got, err := readResponse(conn, len(pong))
 					if err != nil {
-						t.Errorf("did not read conn successfully: %v", err)
+						t.Errorf("response not read: %v", err)
 						errCh <- struct{}{}
 					}
 					if got != pong {
