@@ -10,36 +10,34 @@ type RESP2Writer struct {
 }
 
 func NewRESP2Writer(w io.Writer) *RESP2Writer {
-	rw := &RESP2Writer{
+	return &RESP2Writer{
 		writer: w,
 	}
-	return rw
 }
 
 func (w *RESP2Writer) Write(value Value) error {
 	switch value.(type) {
 	case Array:
-		return w.writeArray(value)
+		return w.writeArray(value.(Array))
 	case BulkError:
-		return w.writeBulkError(value)
+		return w.writeBulkError(value.(BulkError))
 	case BulkString:
-		return w.writeBulkString(value)
+		return w.writeBulkString(value.(BulkString))
 	case Integer:
-		return w.writeInteger(value)
+		return w.writeInteger(value.(Integer))
 	case NullArray:
 		return w.writeNullArray()
 	case NullBulkString:
 		return w.writeNullBulkString()
 	case SimpleError:
-		return w.writeSimpleError(value)
+		return w.writeSimpleError(value.(SimpleError))
 	case SimpleString:
-		return w.writeSimpleString(value)
+		return w.writeSimpleString(value.(SimpleString))
 	}
 	return unreachable[error]()
 }
 
-func (w *RESP2Writer) writeArray(value Value) error {
-	a := value.(Array)
+func (w *RESP2Writer) writeArray(a Array) error {
 	if _, err := fmt.Fprintf(w.writer, "*%d\r\n", len(a)); err != nil {
 		return w.wrapAsInternalWriterError(err)
 	}
@@ -51,20 +49,19 @@ func (w *RESP2Writer) writeArray(value Value) error {
 	return nil
 }
 
-func (w *RESP2Writer) writeBulkError(value Value) error {
-	s := value.(BulkError).Message()
+func (w *RESP2Writer) writeBulkError(berr BulkError) error {
+	s := berr.Message()
 	_, err := fmt.Fprintf(w.writer, "!%d\r\n%s\r\n", len(s), s)
 	return err
 }
 
-func (w *RESP2Writer) writeBulkString(value Value) error {
-	s := string(value.(BulkString))
+func (w *RESP2Writer) writeBulkString(s BulkString) error {
 	_, err := fmt.Fprintf(w.writer, "$%d\r\n%s\r\n", len(s), s)
 	return err
 }
 
-func (w *RESP2Writer) writeInteger(value Value) error {
-	_, err := fmt.Fprintf(w.writer, ":%d\r\n", value)
+func (w *RESP2Writer) writeInteger(i Integer) error {
+	_, err := fmt.Fprintf(w.writer, ":%d\r\n", i)
 	return err
 }
 
@@ -78,14 +75,13 @@ func (w *RESP2Writer) writeNullBulkString() error {
 	return err
 }
 
-func (w *RESP2Writer) writeSimpleError(value Value) error {
-	_, err := fmt.Fprintf(w.writer, "-%s\r\n", value)
+func (w *RESP2Writer) writeSimpleError(serr SimpleError) error {
+	_, err := fmt.Fprintf(w.writer, "-%s\r\n", serr)
 	return err
 }
 
-func (w *RESP2Writer) writeSimpleString(value Value) error {
-	s := string(value.(SimpleString))
-	_, err := fmt.Fprintf(w.writer, "+%s\r\n", s)
+func (w *RESP2Writer) writeSimpleString(ss SimpleString) error {
+	_, err := fmt.Fprintf(w.writer, "+%s\r\n", ss)
 	return err
 }
 

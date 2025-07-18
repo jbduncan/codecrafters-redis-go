@@ -33,6 +33,13 @@ sources = ["go.mod", "go.sum", "**/*.go"]
 outputs = { auto = true }
 alias = "t"
 
+[tasks.test-rerun]
+description = "Run the unit tests, even if no changes have been made."
+run = "go test -shuffle=on -race -cover -timeout=15s ./..."
+depends = "build"
+sources = ["go.mod", "go.sum", "**/*.go"]
+alias = "tr"
+
 [tasks.integration-test]
 description = "Run the integration tests."
 run = "go test -shuffle=on -race -cover -timeout=30s -count=1 -tags=integration -v ./integration"
