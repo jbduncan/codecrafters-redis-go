@@ -45,7 +45,7 @@ func dialServer() (net.Conn, error) {
 		return nil, err
 	}
 
-	if err := result.SetDeadline(time.Now().Add(15 * time.Second)); err != nil {
+	if err := result.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		return nil, err
 	}
 

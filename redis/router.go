@@ -12,6 +12,9 @@ func NewRouter() *Router {
 }
 
 func (r Router) Route(value InputValue) Value {
+	// TODO: consider supporting "Inline commands":
+	//       https://redis.io/docs/latest/develop/reference/protocol-spec/#inline-commands
+
 	switch value.(type) {
 	case SimpleString:
 		cmd := string(value.(SimpleString))

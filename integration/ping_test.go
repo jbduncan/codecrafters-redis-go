@@ -29,7 +29,7 @@ func TestPing(t *testing.T) {
 			response: redistest.Pong,
 		},
 		{
-			name:     "three PINGs: three pipelined simple requests",
+			name:     "Pipeline",
 			request:  strings.Repeat(redistest.PingLowercase, 3),
 			response: strings.Repeat(redistest.Pong, 3),
 		},
@@ -48,7 +48,7 @@ func TestPing(t *testing.T) {
 			}
 			if want := tt.response; got != want {
 				t.Errorf(
-					`PING request: got response %q, want %q`, got, want,
+					`got response %q, want %q`, got, want,
 				)
 			}
 		})

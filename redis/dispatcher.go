@@ -19,6 +19,7 @@ type Dispatcher struct {
 	close           func()
 	quit            chan struct{}
 	events          chan event
+	router          *Router
 }
 
 // TODO: consider merging these two parameters together into an interface to
@@ -30,6 +31,7 @@ func NewDispatcher(tcpConnAccepter TCPConnAccepter, close func()) *Dispatcher {
 		close:           close,
 		quit:            make(chan struct{}),
 		events:          make(chan event, 512),
+		router:          NewRouter(),
 	}
 }
 
@@ -53,39 +55,30 @@ func (d *Dispatcher) Run() {
 	}()
 
 	for e := range d.events {
-		text := "+" + e.value.(SimpleString) + "\r\n"
-		if _, err := e.conn.Write([]byte(text)); err != nil {
+		if err := NewRESP2Writer(e.conn).Write(e.value); err != nil {
 			logError(err)
 		}
 	}
 }
 
 func (d *Dispatcher) handleConn(tcpConn TCPConn) {
-	connScanner := NewRESP2Scanner(tcpConn)
-	for _, err := range connScanner.ScanAll() {
-		if errors.Is(err, io.EOF) {
-			return // All input processed
-		}
+	for value, err := range NewRESP2Scanner(tcpConn).ScanAll() {
 		var errorValue ErrorValue
 		if errors.As(err, &errorValue) {
-			// TODO: test this: pass as an event to d.events to be written back
-			//       to the client via redis.Writer.Write
+			// TODO: cover below TODO with an unhappy path integration test
+			// TODO: test this with an invalid syntax request: pass as an event
+			//       to d.events to be written back to the client via
+			//       redis.Writer.Write
 		}
 		if err != nil {
 			logError(err)
 			return
 		}
 
-		// TODO: pass value in _ above to a handler and pass as an event to
-		//       d.events to be written back to the client via
-		//       redis.Writer.Write
-
-		// TODO: consider adding a handler to support "Inline commands" when
-		//       given something that isn't an array:
-		//       https://redis.io/docs/latest/develop/reference/protocol-spec/#inline-commands
+		result := d.router.Route(value)
 
 		d.events <- event{
-			value: SimpleString("PONG"),
+			value: result,
 			conn:  tcpConn,
 		}
 	}

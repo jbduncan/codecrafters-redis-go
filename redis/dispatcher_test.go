@@ -73,19 +73,34 @@ func TestDispatcher_Run(t *testing.T) {
 		response string
 	}{
 		{
-			name:     "PING: lowercase array request",
+			name:     "ping",
 			request:  redistest.PingLowercase,
 			response: redistest.Pong,
 		},
 		{
-			name:     "PING: uppercase array request",
+			name:     "PING",
 			request:  redistest.PingUppercase,
 			response: redistest.Pong,
 		},
 		{
-			name:     "three PINGs: three pipelined simple requests",
+			name:     "Pipeline",
 			request:  strings.Repeat(redistest.PingLowercase, 3),
 			response: strings.Repeat(redistest.Pong, 3),
+		},
+		{
+			name:     "echo foo",
+			request:  "*2\r\n$4\r\necho\r\n$3\r\nfoo\r\n",
+			response: "$3\r\nfoo\r\n",
+		},
+		{
+			name:     "ECHO foo",
+			request:  "*2\r\n$4\r\nECHO\r\n$3\r\nfoo\r\n",
+			response: "$3\r\nfoo\r\n",
+		},
+		{
+			name:     "ECHO quux",
+			request:  "*2\r\n$4\r\nECHO\r\n$4\r\nquux\r\n",
+			response: "$4\r\nquux\r\n",
 		},
 	}
 	for _, tt := range tests {
