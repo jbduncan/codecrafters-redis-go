@@ -50,6 +50,4 @@ func TestEcho(t *testing.T) {
 			}
 		})
 	}
-
-	// TODO: test concurrent echo requests (see ping_test.go)
 }

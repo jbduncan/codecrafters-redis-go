@@ -72,7 +72,7 @@ func runServerBinary(t *testing.T) {
 		}
 	})
 
-	if err := awaitServerStartup(); err != nil {
+	if err := awaitServerStartUp(); err != nil {
 		t.Error(err.Error())
 	}
 }

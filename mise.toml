@@ -42,7 +42,7 @@ alias = "tr"
 
 [tasks.integration-test]
 description = "Run the integration tests."
-run = "go test -shuffle=on -race -cover -timeout=30s -count=1 -tags=integration -v ./integration"
+run = "go test -shuffle=on -race -cover -timeout=30s -count=1 -tags=integration ./integration"
 depends = "build"
 wait_for = "test"
 alias = "i"

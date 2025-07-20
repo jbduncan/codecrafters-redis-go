@@ -65,8 +65,6 @@ func netPipe() (net.Conn, net.Conn) {
 func TestDispatcher_Run(t *testing.T) {
 	t.Parallel()
 
-	// TODO: wire everything together in Dispatcher
-
 	tests := []struct {
 		name     string
 		request  string
@@ -93,14 +91,9 @@ func TestDispatcher_Run(t *testing.T) {
 			response: "$3\r\nfoo\r\n",
 		},
 		{
-			name:     "ECHO foo",
-			request:  "*2\r\n$4\r\nECHO\r\n$3\r\nfoo\r\n",
-			response: "$3\r\nfoo\r\n",
-		},
-		{
-			name:     "ECHO quux",
-			request:  "*2\r\n$4\r\nECHO\r\n$4\r\nquux\r\n",
-			response: "$4\r\nquux\r\n",
+			name:     "Invalid syntax",
+			request:  "*1\r\n^",
+			response: "!42\r\n-ERR Protocol error: expected '$', got '^'\r\n",
 		},
 	}
 	for _, tt := range tests {

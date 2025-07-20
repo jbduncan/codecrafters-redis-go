@@ -18,14 +18,19 @@ const defaultPort = 6379
 func runServer(t *testing.T) {
 	server := redis.Server{}
 	go server.Run()
+	t.Cleanup(func() {
+		if err := awaitServerTearDown(); err != nil {
+			t.Errorf("server was not torn down: %v", err)
+		}
+	})
 	t.Cleanup(server.Stop)
 
-	if err := awaitServerStartup(); err != nil {
+	if err := awaitServerStartUp(); err != nil {
 		t.Error(err.Error())
 	}
 }
 
-func awaitServerStartup() error {
+func awaitServerStartUp() error {
 	timeout := 5 * time.Second
 	sleep := 50 * time.Millisecond
 	if !await.Until(serverIsUp, timeout, sleep) {
@@ -34,9 +39,22 @@ func awaitServerStartup() error {
 	return nil
 }
 
+func awaitServerTearDown() error {
+	timeout := 5 * time.Second
+	sleep := 50 * time.Millisecond
+	if !await.Until(serverIsDown, timeout, sleep) {
+		return fmt.Errorf("server did not start up in %s", timeout)
+	}
+	return nil
+}
+
 func serverIsUp() bool {
 	_, err := dialServer()
 	return err == nil
+}
+
+func serverIsDown() bool {
+	return !serverIsUp()
 }
 
 func dialServer() (net.Conn, error) {

@@ -19,15 +19,16 @@ func TestPing(t *testing.T) {
 		response string
 	}{
 		{
-			name:     "PING: lowercase array request",
+			name:     "ping",
 			request:  redistest.PingLowercase,
 			response: redistest.Pong,
 		},
 		{
-			name:     "PING: uppercase array request",
+			name:     "PING",
 			request:  redistest.PingUppercase,
 			response: redistest.Pong,
 		},
+		// TODO: move to pipelined_requests_test.go
 		{
 			name:     "Pipeline",
 			request:  strings.Repeat(redistest.PingLowercase, 3),
@@ -54,6 +55,7 @@ func TestPing(t *testing.T) {
 		})
 	}
 
+	// TODO: move to concurrent_requests_test.go
 	for _, tt := range []struct {
 		name            string
 		concurrentPings int

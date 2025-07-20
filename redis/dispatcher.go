@@ -65,10 +65,11 @@ func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 	for value, err := range NewRESP2Scanner(tcpConn).ScanAll() {
 		var errorValue ErrorValue
 		if errors.As(err, &errorValue) {
-			// TODO: cover below TODO with an unhappy path integration test
-			// TODO: test this with an invalid syntax request: pass as an event
-			//       to d.events to be written back to the client via
-			//       redis.Writer.Write
+			d.events <- event{
+				value: errorValue,
+				conn:  tcpConn,
+			}
+			return
 		}
 		if err != nil {
 			logError(err)
@@ -76,7 +77,6 @@ func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 		}
 
 		result := d.router.Route(value)
-
 		d.events <- event{
 			value: result,
 			conn:  tcpConn,
