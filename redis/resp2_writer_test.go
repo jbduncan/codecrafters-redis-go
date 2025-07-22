@@ -75,8 +75,8 @@ func TestRESP2Writer_Write(t *testing.T) {
 		},
 		{
 			name:  "Bulk error #2",
-			input: redis.MakeBulkError("ERR blah"),
-			want:  "!8\r\nERR blah\r\n",
+			input: redis.MakeBulkError("ERR quux"),
+			want:  "!8\r\nERR quux\r\n",
 		},
 		{
 			name:  "Array #1",

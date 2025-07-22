@@ -12,7 +12,7 @@ import (
 // TODO: test '£'
 func TestInvalidSyntax(t *testing.T) {
 	request := "*1\r\n^"
-	response := "!42\r\n-ERR Protocol error: expected '$', got '^'\r\n"
+	response := "!41\r\nERR Protocol error: expected '$', got '^'\r\n"
 
 	runServer(t)
 	conn := mustDialServer(t)

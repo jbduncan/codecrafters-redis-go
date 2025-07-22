@@ -10,6 +10,6 @@ type Handler interface {
 
 func wrongNumberOfArgumentsError(cmd string) BulkError {
 	return MakeBulkError(
-		fmt.Sprintf("-ERR wrong number of arguments for '%s' command", cmd),
+		fmt.Sprintf("ERR wrong number of arguments for '%s' command", cmd),
 	)
 }

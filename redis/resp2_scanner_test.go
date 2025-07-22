@@ -54,17 +54,17 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:    "Missing CRLF for simple string",
 			input:   strings.NewReader("PING"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: incomplete request`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: incomplete request`),
 		},
 		{
 			name:    "Missing CR for simple string",
 			input:   strings.NewReader("PING\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: incomplete request`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: incomplete request`),
 		},
 		{
 			name:    "Missing LF for simple string",
 			input:   strings.NewReader("PING\r"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: incomplete request`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: incomplete request`),
 		},
 		{
 			name:           "Simple string that returns error on LF",
@@ -121,77 +121,77 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:    "Zero element array with missing CR",
 			input:   strings.NewReader("*0\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\r', got '\n'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\r', got '\n'`),
 		},
 		{
 			name:    "Invalid array with missing LF",
 			input:   strings.NewReader("*0\r"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: incomplete request`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: incomplete request`),
 		},
 		{
 			name:    "Invalid array with two CRs",
 			input:   strings.NewReader("*0\r\r"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\n', got '\r'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\n', got '\r'`),
 		},
 		{
 			name:    "One element array with missing element",
 			input:   strings.NewReader("*1\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: incomplete request`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: incomplete request`),
 		},
 		{
 			name:    "One element array with invalid bulk string with just the starting $",
 			input:   strings.NewReader("*1\r\n$"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: incomplete request"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: incomplete request"),
 		},
 		{
 			name:    "One element array with invalid bulk string without length",
 			input:   strings.NewReader("*1\r\n$foo\r\nbar\r\n"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: expected digit, got 'f'"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: expected digit, got 'f'"),
 		},
 		{
 			name:    "One element array with invalid bulk string with missing first CR",
 			input:   strings.NewReader("*1\r\n$3\nfoo\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\r', got '\n'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\r', got '\n'`),
 		},
 		{
 			name:    "One element array with invalid bulk string with missing first LF",
 			input:   strings.NewReader("*1\r\n$3\rfoo\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\n', got 'f'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\n', got 'f'`),
 		},
 		{
 			name:    "One element array with invalid bulk string with missing second CR",
 			input:   strings.NewReader("*1\r\n$3\r\nfoo\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\r', got '\n'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\r', got '\n'`),
 		},
 		{
 			name:    "One element array with invalid bulk string with missing second LF",
 			input:   strings.NewReader("*1\r\n$3\r\nfoo\r"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: incomplete request"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: incomplete request"),
 		},
 		{
 			name:    "One element array with bulk string with shorter content than length suggests",
 			input:   strings.NewReader("*1\r\n$2\r\na\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\r', got '\n'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\r', got '\n'`),
 		},
 		{
 			name:    "One element array with bulk string with longer content than length suggests",
 			input:   strings.NewReader("*1\r\n$1\r\nab\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\r', got 'b'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\r', got 'b'`),
 		},
 		{
 			name:    "One element array with bulk string with less bytes in total than length suggests",
 			input:   strings.NewReader("*1\r\n$6\r\na\r\n"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: incomplete request"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: incomplete request"),
 		},
 		{
 			name:    "One element array with invalid bulk string with just a length",
 			input:   strings.NewReader("*1\r\n$1"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: incomplete request"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: incomplete request"),
 		},
 		{
 			name:    "One element array with invalid bulk string with just length and first CRLF",
 			input:   strings.NewReader("*1\r\n$1\r\n"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: incomplete request"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: incomplete request"),
 		},
 		{
 			name:           "One element array with bulk string that returns error on first digit",
@@ -211,7 +211,7 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:    "One element array with bulk string of negative length",
 			input:   strings.NewReader("*1\r\n$-1\r\n"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: expected digit, got '-'"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: expected digit, got '-'"),
 		},
 		{
 			name: "Ten element array of bulk strings",
@@ -243,47 +243,47 @@ func TestRESP2Scanner_ScanAll(t *testing.T) {
 		{
 			name:    "One element array with inner array",
 			input:   strings.NewReader("*1\r\n*0\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '$', got '*'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '$', got '*'`),
 		},
 		{
 			name:    "One element array with negative length",
 			input:   strings.NewReader("*-1\r\n$1\r\na\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected digit, got '-'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected digit, got '-'`),
 		},
 		{
 			name:    "One element array with integer array element",
 			input:   strings.NewReader("*1\r\n:1\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '$', got ':'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '$', got ':'`),
 		},
 		{
 			name:    "One element array with CR array element",
 			input:   strings.NewReader("*1\r\n\r\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '$', got '\r'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '$', got '\r'`),
 		},
 		{
 			name:    "One element array with LF array element",
 			input:   strings.NewReader("*1\r\n\n\r\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '$', got '\n'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '$', got '\n'`),
 		},
 		{
 			name:    "Array with CR length",
 			input:   strings.NewReader("*\r"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected digit, got '\r'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected digit, got '\r'`),
 		},
 		{
 			name:    "Array with LF length",
 			input:   strings.NewReader("*\n"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected digit, got '\n'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected digit, got '\n'`),
 		},
 		{
 			name:    "Array with length ending with alphabetical character",
 			input:   strings.NewReader("*1a"),
-			wantErr: redis.MakeBulkError(`-ERR Protocol error: expected '\r', got 'a'`),
+			wantErr: redis.MakeBulkError(`ERR Protocol error: expected '\r', got 'a'`),
 		},
 		{
 			name:    "Array with length exceeding maximum signed 64-bit integer",
 			input:   strings.NewReader("*9223372036854775808"),
-			wantErr: redis.MakeBulkError("-ERR Protocol error: invalid multibulk length"),
+			wantErr: redis.MakeBulkError("ERR Protocol error: invalid multibulk length"),
 		},
 		{
 			name:           "Error-returning input",

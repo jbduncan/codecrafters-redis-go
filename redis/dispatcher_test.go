@@ -93,7 +93,7 @@ func TestDispatcher_Run(t *testing.T) {
 		{
 			name:     "Invalid syntax",
 			request:  "*1\r\n^",
-			response: "!42\r\n-ERR Protocol error: expected '$', got '^'\r\n",
+			response: "!41\r\nERR Protocol error: expected '$', got '^'\r\n",
 		},
 	}
 	for _, tt := range tests {

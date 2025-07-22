@@ -26,12 +26,12 @@ func TestRouter_Route(t *testing.T) {
 		{
 			name:    `s"FOO": error`,
 			input:   redis.SimpleString("FOO"),
-			wantErr: redis.MakeBulkError("-ERR unknown command `FOO`"),
+			wantErr: redis.MakeBulkError("ERR unknown command `FOO`"),
 		},
 		{
 			name:    `s"BAR": error`,
 			input:   redis.SimpleString("BAR"),
-			wantErr: redis.MakeBulkError("-ERR unknown command `BAR`"),
+			wantErr: redis.MakeBulkError("ERR unknown command `BAR`"),
 		},
 		{
 			name:  `[b"PING"]: s"PONG"`,
@@ -66,32 +66,32 @@ func TestRouter_Route(t *testing.T) {
 		{
 			name:    `[b"ECHO", b"Hello, world", b"Bye, world"]: error`,
 			input:   redis.BulkStringArray{"ECHO", "Hello, world", "Bye, world"},
-			wantErr: redis.MakeBulkError("-ERR wrong number of arguments for 'echo' command"),
+			wantErr: redis.MakeBulkError("ERR wrong number of arguments for 'echo' command"),
 		},
 		{
 			name:    `[b"echo", b"Hello, world", b"Bye, world"]: error`,
 			input:   redis.BulkStringArray{"echo", "Hello, world", "Bye, world"},
-			wantErr: redis.MakeBulkError("-ERR wrong number of arguments for 'echo' command"),
+			wantErr: redis.MakeBulkError("ERR wrong number of arguments for 'echo' command"),
 		},
 		{
 			name:    `[b"FOO"]: error`,
 			input:   redis.BulkStringArray{"FOO"},
-			wantErr: redis.MakeBulkError("-ERR unknown command `FOO`"),
+			wantErr: redis.MakeBulkError("ERR unknown command `FOO`"),
 		},
 		{
 			name:    `[b"BAR"]: error`,
 			input:   redis.BulkStringArray{"BAR"},
-			wantErr: redis.MakeBulkError("-ERR unknown command `BAR`"),
+			wantErr: redis.MakeBulkError("ERR unknown command `BAR`"),
 		},
 		{
 			name:    `[b""]: error`,
 			input:   redis.BulkStringArray{""},
-			wantErr: redis.MakeBulkError("-ERR unknown command ``"),
+			wantErr: redis.MakeBulkError("ERR unknown command ``"),
 		},
 		{
 			name:    `[]: error`,
 			input:   redis.BulkStringArray{},
-			wantErr: redis.MakeBulkError("-ERR no command"),
+			wantErr: redis.MakeBulkError("ERR no command"),
 		},
 	}
 

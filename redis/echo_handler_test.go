@@ -16,7 +16,7 @@ func TestEchoHandler_Handle(t *testing.T) {
 		{
 			name:    "No arguments",
 			args:    redis.BulkStringArray{},
-			wantErr: redis.MakeBulkError("-ERR wrong number of arguments for 'echo' command"),
+			wantErr: redis.MakeBulkError("ERR wrong number of arguments for 'echo' command"),
 		},
 		{
 			name: `"Hello, world"`,
@@ -38,7 +38,7 @@ func TestEchoHandler_Handle(t *testing.T) {
 				redis.BulkString("foo"),
 				redis.BulkString("bar"),
 			},
-			wantErr: redis.MakeBulkError("-ERR wrong number of arguments for 'echo' command"),
+			wantErr: redis.MakeBulkError("ERR wrong number of arguments for 'echo' command"),
 		},
 	}
 	for _, tt := range tests {

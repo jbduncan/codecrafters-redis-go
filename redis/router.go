@@ -25,7 +25,7 @@ func (r Router) Route(value InputValue) Value {
 	case BulkStringArray:
 		arr := value.(BulkStringArray)
 		if len(arr) == 0 {
-			return MakeBulkError("-ERR no command")
+			return MakeBulkError("ERR no command")
 		}
 
 		cmd := string(arr[0])
@@ -43,5 +43,5 @@ func (r Router) Route(value InputValue) Value {
 }
 
 func unknownCommandError(cmd string) BulkError {
-	return MakeBulkError(fmt.Sprintf("-ERR unknown command `%s`", cmd))
+	return MakeBulkError(fmt.Sprintf("ERR unknown command `%s`", cmd))
 }
