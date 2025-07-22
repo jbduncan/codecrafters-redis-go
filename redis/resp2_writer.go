@@ -3,6 +3,7 @@ package redis
 import (
 	"fmt"
 	"io"
+	"slices"
 )
 
 type RESP2Writer struct {
@@ -16,35 +17,44 @@ func NewRESP2Writer(w io.Writer) *RESP2Writer {
 }
 
 func (w *RESP2Writer) Write(value Value) error {
-	switch value.(type) {
+	s := &stack{value}
+	for len(*s) > 0 {
+		if err := w.doWrite(s); err != nil {
+			return w.wrapAsInternalWriterError(err)
+		}
+	}
+	return nil
+}
+
+func (w *RESP2Writer) doWrite(s *stack) error {
+	switch v := s.pop().(type) {
 	case Array:
-		return w.writeArray(value.(Array))
+		return w.writeArray(v, s)
 	case BulkError:
-		return w.writeBulkError(value.(BulkError))
+		return w.writeBulkError(v)
 	case BulkString:
-		return w.writeBulkString(value.(BulkString))
+		return w.writeBulkString(v)
 	case Integer:
-		return w.writeInteger(value.(Integer))
+		return w.writeInteger(v)
 	case NullArray:
 		return w.writeNullArray()
 	case NullBulkString:
 		return w.writeNullBulkString()
 	case SimpleError:
-		return w.writeSimpleError(value.(SimpleError))
+		return w.writeSimpleError(v)
 	case SimpleString:
-		return w.writeSimpleString(value.(SimpleString))
+		return w.writeSimpleString(v)
+	default:
+		return unreachable[error]()
 	}
-	return unreachable[error]()
 }
 
-func (w *RESP2Writer) writeArray(a Array) error {
+func (w *RESP2Writer) writeArray(a Array, s *stack) error {
 	if _, err := fmt.Fprintf(w.writer, "*%d\r\n", len(a)); err != nil {
-		return w.wrapAsInternalWriterError(err)
+		return err
 	}
-	for _, v := range a {
-		if err := w.Write(v); err != nil {
-			return w.wrapAsInternalWriterError(err)
-		}
+	for _, v := range slices.Backward(a) {
+		s.push(v)
 	}
 	return nil
 }
