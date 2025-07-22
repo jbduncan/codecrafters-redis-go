@@ -7,7 +7,10 @@ import (
 
 type TCPConn io.ReadWriteCloser
 
-type TCPConnAccepter func() (TCPConn, error)
+type TCPConnAccepter interface {
+	Accept() (TCPConn, error)
+	Close()
+}
 
 type event struct {
 	value Value
@@ -16,19 +19,14 @@ type event struct {
 
 type Dispatcher struct {
 	tcpConnAccepter TCPConnAccepter
-	close           func()
 	quit            chan struct{}
 	events          chan event
 	router          *Router
 }
 
-// TODO: consider merging these two parameters together into an interface to
-//       make their relationship more obvious.
-
-func NewDispatcher(tcpConnAccepter TCPConnAccepter, close func()) *Dispatcher {
+func NewDispatcher(tcpConnAccepter TCPConnAccepter) *Dispatcher {
 	return &Dispatcher{
 		tcpConnAccepter: tcpConnAccepter,
-		close:           close,
 		quit:            make(chan struct{}),
 		events:          make(chan event, 512),
 		router:          NewRouter(),
@@ -38,7 +36,7 @@ func NewDispatcher(tcpConnAccepter TCPConnAccepter, close func()) *Dispatcher {
 func (d *Dispatcher) Run() {
 	go func() {
 		for {
-			tcpConn, err := d.tcpConnAccepter()
+			tcpConn, err := d.tcpConnAccepter.Accept()
 
 			if err != nil {
 				select {
@@ -89,5 +87,5 @@ func (d *Dispatcher) Stop() {
 	// d.events to be drained before terminating.
 	close(d.quit)
 	close(d.events)
-	d.close()
+	d.tcpConnAccepter.Close()
 }

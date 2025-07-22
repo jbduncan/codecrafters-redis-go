@@ -219,8 +219,21 @@ func runDispatcher(
 	t *testing.T,
 	tcpConnAccepter func() (redis.TCPConn, error),
 ) {
-	dispatcher := redis.NewDispatcher(tcpConnAccepter, func() {})
+	dispatcher := redis.NewDispatcher(
+		nopCloseTCPConnAccepter{delegate: tcpConnAccepter})
 	// This will panic if the nil connection is read
 	go dispatcher.Run()
 	t.Cleanup(dispatcher.Stop)
+}
+
+type nopCloseTCPConnAccepter struct {
+	delegate func() (redis.TCPConn, error)
+}
+
+func (a nopCloseTCPConnAccepter) Accept() (redis.TCPConn, error) {
+	return a.delegate()
+}
+
+func (a nopCloseTCPConnAccepter) Close() {
+	// nop
 }

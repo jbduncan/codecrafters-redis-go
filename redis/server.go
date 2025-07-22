@@ -33,13 +33,22 @@ func (s *Server) Run() {
 
 	slog.Info(fmt.Sprintf("server is listening on port %d", defaultPort))
 
-	s.d = NewDispatcher(
-		func() (TCPConn, error) { return l.Accept() },
-		func() { closeAndLogError(l) },
-	)
+	s.d = NewDispatcher(tcpConnAccepter{delegate: l})
 	s.d.Run()
 }
 
 func (s *Server) Stop() {
 	s.d.Stop()
+}
+
+type tcpConnAccepter struct {
+	delegate net.Listener
+}
+
+func (a tcpConnAccepter) Accept() (TCPConn, error) {
+	return a.delegate.Accept()
+}
+
+func (a tcpConnAccepter) Close() {
+	closeAndLogError(a.delegate)
 }
