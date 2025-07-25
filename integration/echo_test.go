@@ -10,6 +10,14 @@ import (
 )
 
 func TestEcho(t *testing.T) {
+	const (
+		echoFoo = "*2\r\n$4\r\necho\r\n$3\r\nfoo\r\n"
+		foo     = "$3\r\nfoo\r\n"
+
+		ECHOQuux = "*2\r\n$4\r\nECHO\r\n$4\r\nquux\r\n"
+		quux     = "$4\r\nquux\r\n"
+	)
+
 	for _, tt := range []struct {
 		name     string
 		request  string
@@ -17,18 +25,13 @@ func TestEcho(t *testing.T) {
 	}{
 		{
 			name:     "echo foo",
-			request:  "*2\r\n$4\r\necho\r\n$3\r\nfoo\r\n",
-			response: "$3\r\nfoo\r\n",
-		},
-		{
-			name:     "ECHO foo",
-			request:  "*2\r\n$4\r\nECHO\r\n$3\r\nfoo\r\n",
-			response: "$3\r\nfoo\r\n",
+			request:  echoFoo,
+			response: foo,
 		},
 		{
 			name:     "ECHO quux",
-			request:  "*2\r\n$4\r\nECHO\r\n$4\r\nquux\r\n",
-			response: "$4\r\nquux\r\n",
+			request:  ECHOQuux,
+			response: quux,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
