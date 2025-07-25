@@ -2,12 +2,15 @@ package redis
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 )
 
 type TCPConn io.ReadWriteCloser
 
+// TODO: Consider renaming to TCPListener
 type TCPConnAccepter interface {
 	Accept() (TCPConn, error)
 	Close()
@@ -25,9 +28,13 @@ type Dispatcher struct {
 	quit            chan struct{}
 	wg              *sync.WaitGroup
 	stopOnce        *sync.Once
+	logger          *slog.Logger
 }
 
-func NewDispatcher(tcpConnAccepter TCPConnAccepter) *Dispatcher {
+func NewDispatcher(
+	tcpConnAccepter TCPConnAccepter,
+	logger *slog.Logger,
+) *Dispatcher {
 	return &Dispatcher{
 		tcpConnAccepter: tcpConnAccepter,
 		router:          NewRouter(),
@@ -35,6 +42,7 @@ func NewDispatcher(tcpConnAccepter TCPConnAccepter) *Dispatcher {
 		quit:            make(chan struct{}),
 		wg:              new(sync.WaitGroup),
 		stopOnce:        new(sync.Once),
+		logger:          logger,
 	}
 }
 
@@ -48,7 +56,7 @@ func (d *Dispatcher) Run() {
 				case <-d.quit:
 					return
 				default:
-					logError(err)
+					d.logError(err)
 				}
 				continue
 			}
@@ -60,7 +68,7 @@ func (d *Dispatcher) Run() {
 
 	for e := range d.events {
 		if err := NewRESP2Writer(e.conn).Write(e.value); err != nil {
-			logError(err)
+			d.logError(err)
 		}
 	}
 }
@@ -78,7 +86,7 @@ func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 			return
 		}
 		if err != nil {
-			logError(err)
+			d.logError(err)
 			return
 		}
 
@@ -98,4 +106,8 @@ func (d *Dispatcher) Stop() {
 		d.tcpConnAccepter.Close()
 		d.wg.Wait()
 	})
+}
+
+func (d *Dispatcher) logError(err error) {
+	d.logger.Error(fmt.Sprintf("%v", err))
 }

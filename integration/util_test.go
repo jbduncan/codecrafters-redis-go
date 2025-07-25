@@ -17,7 +17,11 @@ const defaultPort = 6379
 
 func runServer(t *testing.T) {
 	server := &redis.Server{}
-	go server.Run()
+	go func() {
+		if err := server.Run(io.Discard); err != nil {
+			t.Errorf("server.Run(): %v", err)
+		}
+	}()
 	t.Cleanup(server.Stop)
 
 	if err := awaitServerStartUp(); err != nil {

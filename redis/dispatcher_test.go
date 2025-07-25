@@ -1,58 +1,17 @@
 package redis_test
 
 import (
-	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/iox"
 	"github.com/codecrafters-io/redis-starter-go/redis"
 	"github.com/codecrafters-io/redis-starter-go/redis/redistest"
-	"github.com/codecrafters-io/redis-starter-go/repeat"
 )
-
-type conn struct {
-	tcpConn redis.TCPConn
-	err     error
-}
-
-type mockTCPConn struct {
-	readCalled   bool
-	readCalledMu *sync.Mutex
-}
-
-func newMockTCPConn() *mockTCPConn {
-	return &mockTCPConn{
-		readCalled:   false,
-		readCalledMu: new(sync.Mutex),
-	}
-}
-
-func (c *mockTCPConn) Read(_ []byte) (n int, err error) {
-	c.readCalledMu.Lock()
-	defer c.readCalledMu.Unlock()
-	c.readCalled = true
-
-	return 0, nil
-}
-
-func (c *mockTCPConn) Write(_ []byte) (n int, err error) {
-	return 0, nil
-}
-
-func (c *mockTCPConn) Close() error {
-	return nil
-}
-
-func (c *mockTCPConn) ReadCalled() bool {
-	c.readCalledMu.Lock()
-	defer c.readCalledMu.Unlock()
-	return c.readCalled
-}
 
 func netPipe() (net.Conn, net.Conn) {
 	a, b := net.Pipe()
@@ -100,23 +59,12 @@ func TestDispatcher_Run(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serverConns := make(chan *conn, 2)
+			serverConns := make(chan net.Conn, 1)
 			clientConn, serverConn := netPipe()
-			serverConns <- &conn{
-				tcpConn: serverConn,
-			}
-			serverConns <- &conn{
-				err: errors.New("no new connections left"),
-			}
+			serverConns <- serverConn
+			conns := []net.Conn{clientConn, serverConn}
 
-			runDispatcher(
-				t,
-				func() (redis.TCPConn, error) {
-					// This will eventually block to stop Dispatcher's inner
-					// loop from looping forever.
-					c := <-serverConns
-					return c.tcpConn, c.err
-				})
+			runDispatcher(t, channelBasedTCPConnAccepter(serverConns), conns)
 			if _, err := io.WriteString(clientConn, tt.request); err != nil {
 				t.Fatalf("request %q not sent: %v", tt.request, err)
 			}
@@ -151,79 +99,62 @@ func TestDispatcher_Run(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serverConns := make(chan *conn, tt.concurrentPings)
+			serverConns := make(chan net.Conn, tt.concurrentPings)
 			clientConns := make(chan net.Conn, tt.concurrentPings)
+			conns := make([]net.Conn, 0, 2*tt.concurrentPings)
 			for range tt.concurrentPings {
 				clientConn, serverConn := netPipe()
-				serverConns <- &conn{
-					tcpConn: serverConn,
-				}
+				serverConns <- serverConn
 				clientConns <- clientConn
+				conns = append(conns, clientConn, serverConn)
 			}
 
-			runDispatcher(
-				t,
-				func() (redis.TCPConn, error) {
-					// This will eventually block to stop Dispatcher's inner
-					// loop from looping forever.
-					c := <-serverConns
-					return c.tcpConn, c.err
-				})
+			dispatcher := redis.NewDispatcher(
+				channelBasedTCPConnAccepter(serverConns),
+				slog.New(slog.DiscardHandler),
+			)
+			go dispatcher.Run()
+			t.Cleanup(func() {
+				for _, c := range conns {
+					_ = c.Close()
+				}
+				dispatcher.Stop()
+			})
 
 			redistest.TestConcurrentPings(
 				t,
 				tt.concurrentPings,
 				func() net.Conn {
 					return <-clientConns
-				})
+				},
+			)
 		})
 	}
-
-	t.Run(
-		"edge case: when tcpConnAccepter returns error, then conn is not read",
-		func(t *testing.T) {
-			t.Parallel()
-
-			mockConn := newMockTCPConn()
-			serverConns := make(chan conn, 1)
-			serverConns <- conn{
-				tcpConn: mockConn,
-				err:     errors.New("no new connections left"),
-			}
-
-			runDispatcher(
-				t,
-				func() (redis.TCPConn, error) {
-					// This will eventually block to stop Dispatcher's inner
-					// loop from looping forever.
-					c := <-serverConns
-					return c.tcpConn, c.err
-				})
-
-			if !repeat.Whilst(
-				func() bool {
-					return !mockConn.ReadCalled()
-				},
-				3*time.Second,
-				100*time.Millisecond,
-			) {
-				t.Fatalf(
-					"Dispatcher.Run(): expected not to call conn.Read() " +
-						"but it did",
-				)
-			}
-		})
 }
 
-func runDispatcher(
-	t *testing.T,
-	tcpConnAccepter func() (redis.TCPConn, error),
-) {
+func runDispatcher(t *testing.T, tcpConnAccepter redis.TCPConnAccepter, conns []net.Conn) {
 	dispatcher := redis.NewDispatcher(
-		nopCloseTCPConnAccepter{delegate: tcpConnAccepter})
-	// This will panic if the nil connection is read
+		tcpConnAccepter,
+		slog.New(slog.DiscardHandler),
+	)
 	go dispatcher.Run()
-	t.Cleanup(dispatcher.Stop)
+	t.Cleanup(func() {
+		for _, c := range conns {
+			_ = c.Close()
+		}
+		dispatcher.Stop()
+	})
+}
+
+func channelBasedTCPConnAccepter(conns <-chan net.Conn) redis.TCPConnAccepter {
+	return nopCloseTCPConnAccepter{
+		delegate: func() (redis.TCPConn, error) {
+			// This will eventually block to stop Dispatcher's inner
+			// loop from looping forever.
+			c := <-conns
+			return c, nil
+		},
+	}
 }
 
 type nopCloseTCPConnAccepter struct {

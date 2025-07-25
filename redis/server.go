@@ -2,9 +2,9 @@ package redis
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
-	"os"
 )
 
 const (
@@ -15,7 +15,7 @@ type Server struct {
 	d *Dispatcher
 }
 
-func (s *Server) Run() {
+func (s *Server) Run(stderr io.Writer) error {
 	// TODO: Figure out a way to make the TCP server stop gracefully on a
 	//       SIGINT or SIGTERM, including terminating slow TCP connections.
 	//   - https://victoriametrics.com/blog/go-graceful-shutdown/
@@ -23,18 +23,30 @@ func (s *Server) Run() {
 	//   - https://eli.thegreenplace.net/2020/graceful-shutdown-of-a-tcp-server-in-go/
 	//   - Search other resources
 
-	slog.SetLogLoggerLevel(slog.LevelDebug)
+	levelVar := &slog.LevelVar{}
+	levelVar.Set(slog.LevelInfo)
+	logger := slog.New(
+		slog.NewTextHandler(
+			stderr,
+			&slog.HandlerOptions{
+				Level: levelVar,
+			},
+		),
+	)
 
 	l, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", defaultPort))
 	if err != nil {
-		logError(fmt.Errorf("port %d not bound: %w", defaultPort, err))
-		os.Exit(1)
+		return fmt.Errorf("port %d not bound: %w", defaultPort, err)
 	}
 
 	slog.Info(fmt.Sprintf("server is listening on port %d", defaultPort))
 
-	s.d = NewDispatcher(tcpConnAccepter{delegate: l})
+	s.d = NewDispatcher(
+		tcpConnAccepter{delegate: l},
+		logger,
+	)
 	s.d.Run()
+	return nil
 }
 
 func (s *Server) Stop() {
@@ -43,6 +55,7 @@ func (s *Server) Stop() {
 
 type tcpConnAccepter struct {
 	delegate net.Listener
+	logger   slog.Logger
 }
 
 func (a tcpConnAccepter) Accept() (TCPConn, error) {
@@ -50,5 +63,7 @@ func (a tcpConnAccepter) Accept() (TCPConn, error) {
 }
 
 func (a tcpConnAccepter) Close() {
-	closeAndLogError(a.delegate)
+	if err := a.delegate.Close(); err != nil {
+		a.logger.Error(fmt.Sprintf("%v", err))
+	}
 }
