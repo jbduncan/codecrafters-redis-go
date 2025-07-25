@@ -3,6 +3,7 @@ package redis
 import (
 	"errors"
 	"io"
+	"sync"
 )
 
 type TCPConn io.ReadWriteCloser
@@ -19,17 +20,21 @@ type event struct {
 
 type Dispatcher struct {
 	tcpConnAccepter TCPConnAccepter
-	quit            chan struct{}
-	events          chan event
 	router          *Router
+	events          chan event
+	quit            chan struct{}
+	wg              *sync.WaitGroup
+	stopOnce        *sync.Once
 }
 
 func NewDispatcher(tcpConnAccepter TCPConnAccepter) *Dispatcher {
 	return &Dispatcher{
 		tcpConnAccepter: tcpConnAccepter,
-		quit:            make(chan struct{}),
-		events:          make(chan event, 512),
 		router:          NewRouter(),
+		events:          make(chan event, 512),
+		quit:            make(chan struct{}),
+		wg:              new(sync.WaitGroup),
+		stopOnce:        new(sync.Once),
 	}
 }
 
@@ -48,6 +53,7 @@ func (d *Dispatcher) Run() {
 				continue
 			}
 
+			d.wg.Add(1)
 			go d.handleConn(tcpConn)
 		}
 	}()
@@ -60,6 +66,8 @@ func (d *Dispatcher) Run() {
 }
 
 func (d *Dispatcher) handleConn(tcpConn TCPConn) {
+	defer d.wg.Done()
+
 	for value, err := range NewRESP2Scanner(tcpConn).ScanAll() {
 		var errorValue ErrorValue
 		if errors.As(err, &errorValue) {
@@ -83,9 +91,11 @@ func (d *Dispatcher) handleConn(tcpConn TCPConn) {
 }
 
 func (d *Dispatcher) Stop() {
-	// Stops more TCP connections from being accepted and makes Run() wait for
-	// d.events to be drained before terminating.
-	close(d.quit)
-	close(d.events)
-	d.tcpConnAccepter.Close()
+	// Stops more TCP connections from being accepted and allows Run() to drain
+	// all remaining events in d.events before terminating.
+	d.stopOnce.Do(func() {
+		close(d.quit)
+		d.tcpConnAccepter.Close()
+		d.wg.Wait()
+	})
 }
