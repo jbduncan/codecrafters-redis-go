@@ -10,6 +10,8 @@ status.show_tools = true
 
 [tools]
 go = "latest"
+cosign = "latest"
+usage = "latest"
 
 [tasks.build]
 description = "Compile the server."
