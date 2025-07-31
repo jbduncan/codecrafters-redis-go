@@ -24,22 +24,22 @@ func TestConcurrentPings(t testing.TB, pings int, newConn func() net.Conn) {
 			countDownLatch.Done()
 			countDownLatch.Wait()
 
-			if _, err := io.WriteString(conn, PingLowercase); err != nil {
-				t.Errorf("request %q not sent: %v", PingLowercase, err)
+			if _, err := io.WriteString(conn, RequestPingLowercase); err != nil {
+				t.Errorf("request %q not sent: %v", RequestPingLowercase, err)
 				errOccurredCh <- struct{}{}
 				return
 			}
 
-			got, err := iox.ReadExactly(conn, len(Pong))
+			got, err := iox.ReadExactly(conn, len(ResponsePong))
 			if err != nil {
 				t.Errorf("response not read: %v", err)
 				errOccurredCh <- struct{}{}
 			}
-			if got != Pong {
+			if got != ResponsePong {
 				t.Errorf(
 					`PING request: got response %q, want %q`,
 					got,
-					Pong,
+					ResponsePong,
 				)
 				errOccurredCh <- struct{}{}
 			}

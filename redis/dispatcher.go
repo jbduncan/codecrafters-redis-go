@@ -6,9 +6,14 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 )
 
-type TCPConn io.ReadWriteCloser
+type TCPConn interface {
+	io.ReadWriteCloser
+
+	SetDeadline(t time.Time) error
+}
 
 // TODO: Consider renaming to TCPListener
 type TCPConnAccepter interface {

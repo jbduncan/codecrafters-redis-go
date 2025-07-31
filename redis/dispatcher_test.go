@@ -31,18 +31,18 @@ func TestDispatcher_Run(t *testing.T) {
 	}{
 		{
 			name:     "ping",
-			request:  redistest.PingLowercase,
-			response: redistest.Pong,
+			request:  redistest.RequestPingLowercase,
+			response: redistest.ResponsePong,
 		},
 		{
 			name:     "PING",
-			request:  redistest.PingUppercase,
-			response: redistest.Pong,
+			request:  redistest.RequestPingUppercase,
+			response: redistest.ResponsePong,
 		},
 		{
 			name:     "Pipeline",
-			request:  strings.Repeat(redistest.PingLowercase, 3),
-			response: strings.Repeat(redistest.Pong, 3),
+			request:  strings.Repeat(redistest.RequestPingLowercase, 3),
+			response: strings.Repeat(redistest.ResponsePong, 3),
 		},
 		{
 			name:     "echo foo",

@@ -49,10 +49,6 @@ func serverIsUp() bool {
 	return result
 }
 
-func serverIsDown() bool {
-	return !serverIsUp()
-}
-
 func dialServer() (net.Conn, error) {
 	result, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", defaultPort))
 	if err != nil {
@@ -72,13 +68,9 @@ func mustDialServer(t *testing.T) net.Conn {
 		t.Fatalf("no connection to server: %v", err)
 	}
 	t.Cleanup(func() {
-		loggingClose(t, conn)
+		if err := conn.Close(); err != nil {
+			t.Logf("connection to server could not be closed: %v", err)
+		}
 	})
 	return conn
-}
-
-func loggingClose(t *testing.T, closer io.Closer) {
-	if err := closer.Close(); err != nil {
-		t.Log(err)
-	}
 }

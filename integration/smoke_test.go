@@ -3,39 +3,23 @@
 package integration_test
 
 import (
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/codecrafters-io/redis-starter-go/iox"
 	"github.com/codecrafters-io/redis-starter-go/redis/redistest"
 )
 
 func TestSmoke(t *testing.T) {
+	request := redistest.RequestPingLowercase
+	response := redistest.ResponsePong
+
 	runServerBinary(t)
 	conn := mustDialServer(t)
 
-	if _, err := io.WriteString(conn, redistest.PingLowercase); err != nil {
-		t.Fatalf(
-			"did not write message %q successfully: %v",
-			redistest.PingLowercase,
-			err,
-		)
-	}
-
-	got, err := iox.ReadExactly(conn, len(redistest.Pong))
-	if err != nil {
-		t.Errorf("did not read conn successfully: %v", err)
-	}
-	want := redistest.Pong
-	if got != want {
-		t.Errorf(
-			`PING request: got response %q, want %q`, got, want,
-		)
-	}
+	redistest.TestRequestAndResponse(t, conn, request, response)
 }
 
 func runServerBinary(t *testing.T) {
