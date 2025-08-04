@@ -5,22 +5,26 @@ import (
 	"strings"
 )
 
-type Router struct {
+type Router interface {
+	Route(value InputValue) Value
+}
+
+type DefaultRouter struct {
 	echoHandler Handler
 	pingHandler Handler
 }
 
-func NewRouter(
+func NewDefaultRouter(
 	echoHandler Handler,
 	pingHandler Handler,
-) *Router {
-	return &Router{
+) *DefaultRouter {
+	return &DefaultRouter{
 		echoHandler: echoHandler,
 		pingHandler: pingHandler,
 	}
 }
 
-func (r Router) Route(value InputValue) Value {
+func (r DefaultRouter) Route(value InputValue) Value {
 	// TODO: consider supporting "Inline commands":
 	//       https://redis.io/docs/latest/develop/reference/protocol-spec/#inline-commands
 

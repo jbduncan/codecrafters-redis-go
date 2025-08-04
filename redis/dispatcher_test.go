@@ -120,7 +120,7 @@ func runDispatcher(t *testing.T, conns int) <-chan net.Conn {
 				return <-serverConns, nil
 			},
 		},
-		redis.NewRouter(
+		redis.NewDefaultRouter(
 			redis.EchoHandler{},
 			redis.PingHandler{},
 		),

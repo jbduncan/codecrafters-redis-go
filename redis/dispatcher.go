@@ -28,7 +28,7 @@ type event struct {
 
 type Dispatcher struct {
 	tcpConnAccepter TCPConnAccepter
-	router          *Router
+	router          Router
 	events          chan event
 	quit            chan struct{}
 	wg              *sync.WaitGroup
@@ -38,7 +38,7 @@ type Dispatcher struct {
 
 func NewDispatcher(
 	tcpConnAccepter TCPConnAccepter,
-	router *Router,
+	router Router,
 	logger *slog.Logger,
 ) *Dispatcher {
 	return &Dispatcher{

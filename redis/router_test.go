@@ -97,8 +97,11 @@ func TestRouter_Route(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := redis.NewRouter(redis.EchoHandler{}, redis.PingHandler{}).
-				Route(tt.input)
+			result :=
+				redis.NewDefaultRouter(
+					redis.EchoHandler{},
+					redis.PingHandler{},
+				).Route(tt.input)
 
 			testEqual(t, result, tt.want, tt.wantErr)
 		})
