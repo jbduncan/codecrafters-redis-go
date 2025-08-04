@@ -38,11 +38,12 @@ type Dispatcher struct {
 
 func NewDispatcher(
 	tcpConnAccepter TCPConnAccepter,
+	router *Router,
 	logger *slog.Logger,
 ) *Dispatcher {
 	return &Dispatcher{
 		tcpConnAccepter: tcpConnAccepter,
-		router:          NewRouter(),
+		router:          router,
 		events:          make(chan event, 512),
 		quit:            make(chan struct{}),
 		wg:              new(sync.WaitGroup),

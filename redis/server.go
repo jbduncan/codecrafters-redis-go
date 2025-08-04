@@ -43,6 +43,10 @@ func (s *Server) Run(stderr io.Writer) error {
 
 	s.d = NewDispatcher(
 		tcpConnAccepter{delegate: l},
+		NewRouter(
+			EchoHandler{},
+			PingHandler{},
+		),
 		logger,
 	)
 	s.d.Run()

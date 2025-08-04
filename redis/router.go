@@ -5,10 +5,19 @@ import (
 	"strings"
 )
 
-type Router struct{}
+type Router struct {
+	echoHandler Handler
+	pingHandler Handler
+}
 
-func NewRouter() *Router {
-	return &Router{}
+func NewRouter(
+	echoHandler Handler,
+	pingHandler Handler,
+) *Router {
+	return &Router{
+		echoHandler: echoHandler,
+		pingHandler: pingHandler,
+	}
 }
 
 func (r Router) Route(value InputValue) Value {
@@ -19,7 +28,7 @@ func (r Router) Route(value InputValue) Value {
 	case SimpleString:
 		cmd := string(value.(SimpleString))
 		if strings.EqualFold(cmd, "ping") {
-			return PingHandler{}.Handle(nil)
+			return r.pingHandler.Handle(nil)
 		}
 		return unknownCommandError(cmd)
 	case BulkStringArray:
@@ -32,9 +41,9 @@ func (r Router) Route(value InputValue) Value {
 		args := arr[1:]
 		switch strings.ToLower(cmd) {
 		case "echo":
-			return EchoHandler{}.Handle(args)
+			return r.echoHandler.Handle(args)
 		case "ping":
-			return PingHandler{}.Handle(args)
+			return r.pingHandler.Handle(args)
 		}
 		return unknownCommandError(cmd)
 	}

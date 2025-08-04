@@ -13,14 +13,6 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis/redistest"
 )
 
-func netPipe() (net.Conn, net.Conn) {
-	a, b := net.Pipe()
-	deadline := time.Now().Add(10 * time.Second)
-	_ = a.SetDeadline(deadline)
-	_ = b.SetDeadline(deadline)
-	return a, b
-}
-
 func TestDispatcher_Run(t *testing.T) {
 	t.Parallel()
 
@@ -59,17 +51,14 @@ func TestDispatcher_Run(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serverConns := make(chan net.Conn, 1)
-			clientConn, serverConn := netPipe()
-			serverConns <- serverConn
-			conns := []net.Conn{clientConn, serverConn}
+			conns := runDispatcher(t, 1)
+			c := <-conns
 
-			runDispatcher(t, channelBasedTCPConnAccepter(serverConns), conns)
-			if _, err := io.WriteString(clientConn, tt.request); err != nil {
+			if _, err := io.WriteString(c, tt.request); err != nil {
 				t.Fatalf("request %q not sent: %v", tt.request, err)
 			}
 
-			got, err := iox.ReadExactly(clientConn, len(tt.response))
+			got, err := iox.ReadExactly(c, len(tt.response))
 			if err != nil {
 				t.Fatalf("response not read: %v", err)
 			}
@@ -99,62 +88,61 @@ func TestDispatcher_Run(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			serverConns := make(chan net.Conn, tt.concurrentPings)
-			clientConns := make(chan net.Conn, tt.concurrentPings)
-			conns := make([]net.Conn, 0, 2*tt.concurrentPings)
-			for range tt.concurrentPings {
-				clientConn, serverConn := netPipe()
-				serverConns <- serverConn
-				clientConns <- clientConn
-				conns = append(conns, clientConn, serverConn)
-			}
-
-			dispatcher := redis.NewDispatcher(
-				channelBasedTCPConnAccepter(serverConns),
-				slog.New(slog.DiscardHandler),
-			)
-			go dispatcher.Run()
-			t.Cleanup(func() {
-				for _, c := range conns {
-					_ = c.Close()
-				}
-				dispatcher.Stop()
-			})
+			conns := runDispatcher(t, tt.concurrentPings)
 
 			redistest.TestConcurrentPings(
 				t,
 				tt.concurrentPings,
 				func() net.Conn {
-					return <-clientConns
+					return <-conns
 				},
 			)
 		})
 	}
 }
 
-func runDispatcher(t *testing.T, tcpConnAccepter redis.TCPConnAccepter, conns []net.Conn) {
+func runDispatcher(t *testing.T, conns int) <-chan net.Conn {
+	serverConns := make(chan net.Conn, conns)
+	clientConns := make(chan net.Conn, conns)
+	c := make([]net.Conn, 0, 2*conns)
+	for range conns {
+		clientConn, serverConn := netPipe()
+		serverConns <- serverConn
+		clientConns <- clientConn
+		c = append(c, clientConn, serverConn)
+	}
+
 	dispatcher := redis.NewDispatcher(
-		tcpConnAccepter,
+		nopCloseTCPConnAccepter{
+			delegate: func() (redis.TCPConn, error) {
+				// This will eventually block to stop Dispatcher's inner
+				// loop from looping forever.
+				return <-serverConns, nil
+			},
+		},
+		redis.NewRouter(
+			redis.EchoHandler{},
+			redis.PingHandler{},
+		),
 		slog.New(slog.DiscardHandler),
 	)
 	go dispatcher.Run()
 	t.Cleanup(func() {
-		for _, c := range conns {
+		for _, c := range c {
 			_ = c.Close()
 		}
 		dispatcher.Stop()
 	})
+
+	return clientConns
 }
 
-func channelBasedTCPConnAccepter(conns <-chan net.Conn) redis.TCPConnAccepter {
-	return nopCloseTCPConnAccepter{
-		delegate: func() (redis.TCPConn, error) {
-			// This will eventually block to stop Dispatcher's inner
-			// loop from looping forever.
-			c := <-conns
-			return c, nil
-		},
-	}
+func netPipe() (net.Conn, net.Conn) {
+	a, b := net.Pipe()
+	deadline := time.Now().Add(10 * time.Second)
+	_ = a.SetDeadline(deadline)
+	_ = b.SetDeadline(deadline)
+	return a, b
 }
 
 type nopCloseTCPConnAccepter struct {
