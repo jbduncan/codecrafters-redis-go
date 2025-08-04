@@ -1,5 +1,7 @@
 package redis
 
+//region Interfaces and type hierarchy
+
 type Value interface {
 	// isValue is a private method that enforces that only types in this
 	// package can implement Value.
@@ -18,6 +20,27 @@ type ErrorValue interface {
 
 	Message() string
 }
+
+var (
+	_ Value = (*SimpleString)(nil)
+	_ Value = (*SimpleError)(nil)
+	_ Value = (*Integer)(nil)
+	_ Value = (*BulkString)(nil)
+	_ Value = (*NullBulkString)(nil)
+	_ Value = (*Array)(nil)
+	_ Value = (*NullArray)(nil)
+	_ Value = (*BulkError)(nil)
+
+	_ InputValue = (*SimpleString)(nil)
+	_ InputValue = (*BulkStringArray)(nil)
+
+	_ ErrorValue = (*SimpleError)(nil)
+	_ ErrorValue = (*BulkError)(nil)
+)
+
+//endregion
+
+//region Structs
 
 type SimpleString string
 
@@ -122,3 +145,5 @@ func (e BulkError) Error() string {
 func (e BulkError) Message() string {
 	return e.message
 }
+
+//endregion
