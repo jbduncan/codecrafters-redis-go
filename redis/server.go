@@ -11,6 +11,10 @@ const (
 	defaultPort = 6379
 )
 
+// TODO: It's not clear if the distinction between Server and Dispatcher is
+//       helpful. Try merging the two types together and see how it affects
+//       the tests.
+
 type Server struct {
 	d *Dispatcher
 }
