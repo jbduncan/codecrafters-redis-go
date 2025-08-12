@@ -58,7 +58,9 @@ func (s *Server) Run(stderr io.Writer) error {
 }
 
 func (s *Server) Stop() {
-	s.d.Stop()
+	if s.d != nil {
+		s.d.Stop()
+	}
 }
 
 type tcpConnAccepter struct {
