@@ -29,7 +29,7 @@ quiet = true
 
 [tasks.test]
 description = "Run the unit tests."
-run = "go test -shuffle=on -race -cover -timeout=15s ./..."
+run = "go test -shuffle=on -race -cover -timeout=15s $(go list ./... | grep -v integration)"
 depends = "build"
 sources = ["go.mod", "go.sum", "**/*.go"]
 outputs = { auto = true }
@@ -37,14 +37,14 @@ alias = "t"
 
 [tasks.test-rerun]
 description = "Run the unit tests, even if no changes have been made."
-run = "go test -shuffle=on -race -cover -timeout=15s ./..."
+run = "go test -shuffle=on -race -cover -timeout=15s $(go list ./... | grep -v integration)"
 depends = "build"
 sources = ["go.mod", "go.sum", "**/*.go"]
 alias = "tr"
 
 [tasks.integration-test]
 description = "Run the integration tests."
-run = "go test -shuffle=on -race -cover -timeout=30s -count=1 -tags=integration ./integration"
+run = "go test -shuffle=on -race -cover -timeout=30s -count=1 ./integration"
 depends = "build"
 wait_for = "test"
 alias = "i"

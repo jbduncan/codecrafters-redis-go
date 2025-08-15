@@ -17,7 +17,7 @@ func TestRequestAndResponse(t *testing.T, conn net.Conn, request, response strin
 
 	got, err := iox.ReadExactly(conn, len(response))
 	if err != nil {
-		t.Errorf("response not read: %v", err)
+		t.Fatalf("response not read: %v", err)
 	}
 	if want := response; got != want {
 		t.Errorf(

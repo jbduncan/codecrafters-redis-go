@@ -1,5 +1,3 @@
-//go:build integration
-
 package integration_test
 
 import (
@@ -9,7 +7,6 @@ import (
 )
 
 func TestEcho(t *testing.T) {
-
 	for _, tt := range []struct {
 		name     string
 		request  string

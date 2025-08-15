@@ -1,5 +1,3 @@
-//go:build integration
-
 package integration_test
 
 import (
@@ -47,10 +45,7 @@ func runServerBinary(t *testing.T) {
 
 	t.Cleanup(func() {
 		// TODO: Replace with serverCmd.Process.Signal(os.Interrupt) when the
-		//       server can gracefully shut down:
-		//   - https://victoriametrics.com/blog/go-graceful-shutdown/
-		//   - https://www.rudderstack.com/blog/implementing-graceful-shutdown-in-go/
-		//   - https://eli.thegreenplace.net/2020/graceful-shutdown-of-a-tcp-server-in-go/
+		//       server can gracefully shut down.
 		if err := serverCmd.Process.Kill(); err != nil {
 			t.Fatalf("server did not stop gracefully: %v", err)
 		}

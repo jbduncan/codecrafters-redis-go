@@ -1,32 +1,29 @@
 package redis
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"sync"
 )
 
 const (
 	defaultPort = 6379
 )
 
-// TODO: It's not clear if the distinction between Server and Dispatcher is
-//       helpful. Try merging the two types together and see how it affects
-//       the tests.
-
 type Server struct {
-	d *Dispatcher
+	tcpListener net.Listener
+	router      Router
+	events      chan event
+	quit        chan struct{}
+	wg          *sync.WaitGroup
+	stopOnce    *sync.Once
+	logger      *slog.Logger
 }
 
-func (s *Server) Run(stderr io.Writer) error {
-	// TODO: Figure out a way to make the TCP server stop gracefully on a
-	//       SIGINT or SIGTERM, including terminating slow TCP connections.
-	//   - https://victoriametrics.com/blog/go-graceful-shutdown/
-	//   - https://www.rudderstack.com/blog/implementing-graceful-shutdown-in-go/
-	//   - https://eli.thegreenplace.net/2020/graceful-shutdown-of-a-tcp-server-in-go/
-	//   - Search other resources
-
+func StartServer(stderr io.Writer) (*Server, error) {
 	levelVar := &slog.LevelVar{}
 	levelVar.Set(slog.LevelInfo)
 	logger := slog.New(
@@ -37,43 +34,113 @@ func (s *Server) Run(stderr io.Writer) error {
 			},
 		),
 	)
+	router := NewDefaultRouter(
+		EchoHandler{},
+		PingHandler{},
+	)
 
 	l, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", defaultPort))
 	if err != nil {
-		return fmt.Errorf("port %d not bound: %w", defaultPort, err)
+		return nil, fmt.Errorf(
+			"%w: %w", PortNotBoundError{port: defaultPort}, err,
+		)
 	}
+	logger.Info(fmt.Sprintf("server is listening on port %d", defaultPort))
 
-	slog.Info(fmt.Sprintf("server is listening on port %d", defaultPort))
+	s := &Server{
+		tcpListener: l,
+		router:      router,
+		events:      make(chan event, 512),
+		quit:        make(chan struct{}),
+		wg:          new(sync.WaitGroup),
+		stopOnce:    new(sync.Once),
+		logger:      logger,
+	}
+	s.run()
+	return s, nil
+}
 
-	s.d = NewDispatcher(
-		tcpConnAccepter{delegate: l},
-		NewDefaultRouter(
-			EchoHandler{},
-			PingHandler{},
-		),
-		logger,
-	)
-	s.d.Run()
-	return nil
+func (s *Server) run() {
+	go func() {
+		for {
+			tcpConn, err := s.tcpListener.Accept()
+			if err != nil {
+				select {
+				case <-s.quit:
+					return
+				default:
+					s.logError(err)
+				}
+				continue
+			}
+
+			s.wg.Add(1)
+			go s.handleConn(tcpConn)
+		}
+	}()
+
+	go func() {
+		for e := range s.events {
+			if err := NewRESP2Writer(e.conn).Write(e.value); err != nil {
+				s.logError(err)
+			}
+		}
+	}()
+}
+
+func (s *Server) handleConn(tcpConn net.Conn) {
+	defer s.wg.Done()
+
+	for value, err := range NewRESP2Scanner(tcpConn).ScanAll() {
+		var errorValue ErrorValue
+		if errors.As(err, &errorValue) {
+			s.events <- event{
+				value: errorValue,
+				conn:  tcpConn,
+			}
+			return
+		}
+		if err != nil {
+			s.logError(err)
+		}
+
+		result := s.router.Route(value)
+		s.events <- event{
+			value: result,
+			conn:  tcpConn,
+		}
+	}
 }
 
 func (s *Server) Stop() {
-	if s.d != nil {
-		s.d.Stop()
-	}
+	// Stops more TCP connections from being accepted and allows Run() to drain
+	// all remaining events in d.events before terminating.
+	s.stopOnce.Do(func() {
+		close(s.quit)
+		if err := s.tcpListener.Close(); err != nil {
+			s.logError(err)
+		}
+		s.wg.Wait()
+	})
 }
 
-type tcpConnAccepter struct {
-	delegate net.Listener
-	logger   slog.Logger
+func (s *Server) logError(err error) {
+	s.logger.Error(err.Error())
 }
 
-func (a tcpConnAccepter) Accept() (TCPConn, error) {
-	return a.delegate.Accept()
+type event struct {
+	value Value
+	conn  net.Conn
 }
 
-func (a tcpConnAccepter) Close() {
-	if err := a.delegate.Close(); err != nil {
-		a.logger.Error(fmt.Sprintf("%v", err))
-	}
+type PortNotBoundError struct {
+	port int
+}
+
+func (p PortNotBoundError) Error() string {
+	return fmt.Sprintf("port %d not bound", defaultPort)
+}
+
+func (p PortNotBoundError) Port() int {
+	return p.port
 }

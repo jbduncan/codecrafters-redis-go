@@ -1,10 +1,7 @@
-//go:build integration
-
 package integration_test
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"testing"
 	"time"
@@ -13,20 +10,33 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/redis"
 )
 
-const defaultPort = 6379
+const (
+	defaultPort = 6379
+)
 
 func runServer(t *testing.T) {
-	server := &redis.Server{}
-	go func() {
-		if err := server.Run(io.Discard); err != nil {
-			t.Errorf("server.Run(): %v", err)
-		}
-	}()
+	server, err := redis.StartServer(newTLogWriter(t))
+	if err != nil {
+		t.Fatalf("server did not start up: %v", err)
+	}
 	t.Cleanup(server.Stop)
 
 	if err := awaitServerStartUp(); err != nil {
 		t.Error(err.Error())
 	}
+}
+
+type tLogWriter struct {
+	t *testing.T
+}
+
+func newTLogWriter(t *testing.T) *tLogWriter {
+	return &tLogWriter{t: t}
+}
+
+func (w *tLogWriter) Write(p []byte) (n int, err error) {
+	w.t.Log(string(p))
+	return len(p), nil
 }
 
 func awaitServerStartUp() error {
@@ -40,26 +50,13 @@ func awaitServerStartUp() error {
 
 func serverIsUp() bool {
 	conn, err := dialServer()
-	result := err == nil
-	defer func() {
-		if conn != nil {
-			_ = conn.Close()
-		}
-	}()
-	return result
-}
-
-func dialServer() (net.Conn, error) {
-	result, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", defaultPort))
 	if err != nil {
-		return nil, err
+		return false
 	}
-
-	if err := result.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	defer func() {
+		_ = conn.Close()
+	}()
+	return true
 }
 
 func mustDialServer(t *testing.T) net.Conn {
@@ -73,4 +70,17 @@ func mustDialServer(t *testing.T) net.Conn {
 		}
 	})
 	return conn
+}
+
+func dialServer() (net.Conn, error) {
+	result, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", defaultPort))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := result.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
