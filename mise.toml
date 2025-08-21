@@ -9,7 +9,7 @@ status.show_env = true
 status.show_tools = true
 
 [tools]
-go = "latest"
+go = "1.25"
 cosign = "latest"
 usage = "latest"
 
