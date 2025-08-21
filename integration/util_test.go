@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -14,12 +15,24 @@ const (
 	defaultPort = 6379
 )
 
-func runServer(t *testing.T) {
-	server, err := redis.StartServer(newTLogWriter(t))
+func runServer(t *testing.T) *redis.Server {
+	server, err := redis.StartServer(context.Background(), newTLogWriter(t))
 	if err != nil {
 		t.Fatalf("server did not start up: %v", err)
 	}
 	t.Cleanup(server.Stop)
+
+	if err := awaitServerStartUp(); err != nil {
+		t.Error(err.Error())
+	}
+
+	return server
+}
+
+func runServerContext(ctx context.Context, t *testing.T) {
+	if _, err := redis.StartServer(ctx, newTLogWriter(t)); err != nil {
+		t.Fatalf("server did not start up: %v", err)
+	}
 
 	if err := awaitServerStartUp(); err != nil {
 		t.Error(err.Error())

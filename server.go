@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -23,7 +24,7 @@ func main() {
 }
 
 func run() error {
-	if _, err := redis.StartServer(os.Stderr); err != nil {
+	if _, err := redis.StartServer(context.Background(), os.Stderr); err != nil {
 		return err
 	}
 

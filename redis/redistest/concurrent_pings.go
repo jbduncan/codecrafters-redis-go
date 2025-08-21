@@ -11,8 +11,8 @@ import (
 )
 
 func TestConcurrentPings(t testing.TB, pings int, newConn func() net.Conn) {
-	var countDownLatch sync.WaitGroup
-	countDownLatch.Add(pings)
+	var barrier sync.WaitGroup
+	barrier.Add(pings)
 	var allSuccessful sync.WaitGroup
 	allSuccessful.Add(pings)
 	errOccurredCh := make(chan struct{})
@@ -21,8 +21,8 @@ func TestConcurrentPings(t testing.TB, pings int, newConn func() net.Conn) {
 		go func() {
 			conn := newConn()
 
-			countDownLatch.Done()
-			countDownLatch.Wait()
+			barrier.Done()
+			barrier.Wait()
 
 			if _, err := io.WriteString(conn, RequestPingLowercase); err != nil {
 				t.Errorf("request %q not sent: %v", RequestPingLowercase, err)

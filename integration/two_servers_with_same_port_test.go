@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -8,13 +9,13 @@ import (
 )
 
 func TestTwoServersWithSamePort(t *testing.T) {
-	s, err := redis.StartServer(newTLogWriter(t))
+	s, err := redis.StartServer(context.Background(), newTLogWriter(t))
 	if err != nil {
 		t.Fatalf("server did not start up: %v", err)
 	}
 	t.Cleanup(s.Stop)
 
-	_, err = redis.StartServer(newTLogWriter(t))
+	_, err = redis.StartServer(context.Background(), newTLogWriter(t))
 	var portNotBoundError redis.PortNotBoundError
 	if !errors.As(err, &portNotBoundError) {
 		t.Fatalf("got err %q, want err of type %T", err, portNotBoundError)

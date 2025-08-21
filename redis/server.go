@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,7 +24,7 @@ type Server struct {
 	logger      *slog.Logger
 }
 
-func StartServer(stderr io.Writer) (*Server, error) {
+func StartServer(ctx context.Context, stderr io.Writer) (*Server, error) {
 	levelVar := &slog.LevelVar{}
 	levelVar.Set(slog.LevelInfo)
 	logger := slog.New(
