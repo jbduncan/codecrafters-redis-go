@@ -16,7 +16,10 @@ const (
 )
 
 func runServer(t *testing.T) *redis.Server {
+	t.Helper()
+
 	server, err := redis.StartServer(context.Background(), newTLogWriter(t))
+
 	if err != nil {
 		t.Fatalf("server did not start up: %v", err)
 	}
@@ -73,6 +76,8 @@ func serverIsUp() bool {
 }
 
 func mustDialServer(t *testing.T) net.Conn {
+	t.Helper()
+
 	conn, err := dialServer()
 	if err != nil {
 		t.Fatalf("no connection to server: %v", err)
